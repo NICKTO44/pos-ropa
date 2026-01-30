@@ -1,70 +1,72 @@
 // database/connection.rs
-// Manejo de conexión a MySQL
+// Manejo de conexión a SQLite
 
-use mysql::*;
-use mysql::prelude::*;
+use rusqlite::{Connection, Result};
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
-// Pool de conexiones global
+// Pool de conexiones SQLite
 pub struct DatabasePool {
-    pool: Arc<Mutex<Pool>>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl DatabasePool {
-    // Crear nueva instancia del pool con OptsBuilder
-    pub fn new(url: &str) -> Result<Self> {
-        let opts = Opts::from_url(url)?;
-        let builder = OptsBuilder::from_opts(opts)
-            .init(vec!["SET NAMES utf8mb4".to_string()]);
+    // Crear nueva instancia con conexión a SQLite
+    pub fn new(db_path: &str) -> Result<Self> {
+        let conn = Connection::open(db_path)?;
         
-        let pool = Pool::new(builder)?;
+        // Habilitar foreign keys (importante!)
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+        
         Ok(DatabasePool {
-            pool: Arc::new(Mutex::new(pool)),
+            conn: Arc::new(Mutex::new(conn)),
         })
     }
 
-    // Obtener una conexión del pool
-    pub fn get_conn(&self) -> Result<PooledConn> {
-        let pool = self.pool.lock().unwrap();
-        pool.get_conn()
+   
+    pub fn get_conn(&self) -> std::sync::MutexGuard<Connection> {
+        self.conn.lock().unwrap()
     }
 }
 
-// Función para crear la URL de conexión
-pub fn create_database_url(
-    host: &str,
-    port: u16,
-    database: &str,
-    user: &str,
-    password: &str,
-) -> String {
-    format!(
-        "mysql://{}:{}@{}:{}/{}",
-        user, password, host, port, database
-    )
+// Función para obtener la ruta de la base de datos
+pub fn get_database_path() -> PathBuf {
+    // En producción, guardar en directorio de datos de la aplicación
+    let mut path = std::env::current_dir().unwrap();
+    path.push("tienda.db");
+    path
+}
+
+// Función para inicializar la base de datos (primera vez)
+pub fn initialize_database(db_path: &str) -> Result<()> {
+    let conn = Connection::open(db_path)?;
+    
+    // Leer y ejecutar el script SQL de inicialización
+    let schema = include_str!("../../schema_sqlite.sql");
+    conn.execute_batch(schema)?;
+    
+    println!("✅ Base de datos inicializada correctamente");
+    Ok(())
+}
+
+// Función para verificar si la BD existe y tiene tablas
+pub fn database_exists(db_path: &str) -> bool {
+    if let Ok(conn) = Connection::open(db_path) {
+        if let Ok(mut stmt) = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'") {
+            return stmt.exists([]).unwrap_or(false);
+        }
+    }
+    false
 }
 
 // Configuración por defecto
-pub fn default_database_url() -> String {
-    create_database_url(
-        "164.92.99.12",
-        3306,
-        "tienda_db",
-        "tienda_user",
-        "Tienda2026_Segura!",
-    )
+pub fn default_database_path() -> String {
+    get_database_path().to_str().unwrap().to_string()
 }
 
 // Probar conexión a la base de datos
-pub fn test_connection(url: &str) -> Result<bool> {
-    let opts = Opts::from_url(url)?;
-    let builder = OptsBuilder::from_opts(opts)
-        .init(vec!["SET NAMES utf8mb4".to_string()]);
-    
-    let pool = Pool::new(builder)?;
-    let mut conn = pool.get_conn()?;
-    
-    let result: Option<i32> = conn.query_first("SELECT 1")?;
-    
-    Ok(result == Some(1))
+pub fn test_connection(db_path: &str) -> Result<bool> {
+    let conn = Connection::open(db_path)?;
+    let result: i32 = conn.query_row("SELECT 1", [], |row| row.get(0))?;
+    Ok(result == 1)
 }

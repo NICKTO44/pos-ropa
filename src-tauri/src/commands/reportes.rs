@@ -1,9 +1,7 @@
-// commands/reportes.rs
-// Comandos de reportes
 
+use rusqlite::OptionalExtension;
 use crate::database::DatabasePool;
-use mysql::prelude::*;
-use mysql::params;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,52 +39,46 @@ pub fn obtener_ventas_rango(
     fecha_inicio: String,
     fecha_fin: String,
 ) -> Result<Vec<VentaResumen>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
             v.id,
             v.folio,
-            DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i') as fecha_hora,
+            strftime('%Y-%m-%d %H:%M', v.fecha_hora) as fecha_hora,
             v.total,
             v.metodo_pago,
             u.nombre_completo as cajero,
             v.estado
         FROM ventas v
         JOIN usuarios u ON v.usuario_id = u.id
-        WHERE DATE(v.fecha_hora) BETWEEN :fecha_inicio AND :fecha_fin
+        WHERE date(v.fecha_hora) BETWEEN ? AND ?
         ORDER BY v.fecha_hora DESC
     ";
 
-    let result: Result<Vec<(i32, String, String, f64, String, String, String)>, _> = conn.exec(
-        query,
-        params! {
-            "fecha_inicio" => &fecha_inicio,
-            "fecha_fin" => &fecha_fin,
-        },
-    );
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    match result {
-        Ok(rows) => {
-            let ventas = rows
-                .into_iter()
-                .map(|(id, folio, fecha_hora, total, metodo_pago, cajero, estado)| VentaResumen {
-                    id,
-                    folio,
-                    fecha_hora,
-                    total,
-                    metodo_pago,
-                    cajero,
-                    estado,
-                })
-                .collect();
-            Ok(ventas)
-        }
-        Err(e) => Err(format!("Error al obtener ventas: {}", e)),
-    }
+    let ventas_iter = stmt
+        .query_map(params![&fecha_inicio, &fecha_fin], |row| {
+            Ok(VentaResumen {
+                id: row.get(0)?,
+                folio: row.get(1)?,
+                fecha_hora: row.get(2)?,
+                total: row.get(3)?,
+                metodo_pago: row.get(4)?,
+                cajero: row.get(5)?,
+                estado: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Error al obtener ventas: {}", e))?;
+
+    let ventas: Vec<VentaResumen> = ventas_iter
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(ventas)
 }
 
 // Comando: Obtener productos más vendidos
@@ -97,10 +89,7 @@ pub fn obtener_productos_mas_vendidos(
     fecha_fin: String,
     limite: i32,
 ) -> Result<Vec<ProductoVendido>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
@@ -110,36 +99,32 @@ pub fn obtener_productos_mas_vendidos(
         FROM detalles_venta dv
         JOIN productos p ON dv.producto_id = p.id
         JOIN ventas v ON dv.venta_id = v.id
-        WHERE DATE(v.fecha_hora) BETWEEN :fecha_inicio AND :fecha_fin
+        WHERE date(v.fecha_hora) BETWEEN ? AND ?
             AND v.estado = 'COMPLETADA'
         GROUP BY p.id, p.nombre
         ORDER BY cantidad_vendida DESC
-        LIMIT :limite
+        LIMIT ?
     ";
 
-    let result: Result<Vec<(String, i32, f64)>, _> = conn.exec(
-        query,
-        params! {
-            "fecha_inicio" => &fecha_inicio,
-            "fecha_fin" => &fecha_fin,
-            "limite" => limite,
-        },
-    );
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    match result {
-        Ok(rows) => {
-            let productos = rows
-                .into_iter()
-                .map(|(producto_nombre, cantidad_vendida, total_vendido)| ProductoVendido {
-                    producto_nombre,
-                    cantidad_vendida,
-                    total_vendido,
-                })
-                .collect();
-            Ok(productos)
-        }
-        Err(e) => Err(format!("Error al obtener productos vendidos: {}", e)),
-    }
+    let productos_iter = stmt
+        .query_map(params![&fecha_inicio, &fecha_fin, limite], |row| {
+            Ok(ProductoVendido {
+                producto_nombre: row.get(0)?,
+                cantidad_vendida: row.get(1)?,
+                total_vendido: row.get(2)?,
+            })
+        })
+        .map_err(|e| format!("Error al obtener productos vendidos: {}", e))?;
+
+    let productos: Vec<ProductoVendido> = productos_iter
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(productos)
 }
 
 // Comando: Obtener estadísticas de ventas
@@ -149,10 +134,7 @@ pub fn obtener_estadisticas_ventas(
     fecha_inicio: String,
     fecha_fin: String,
 ) -> Result<EstadisticasVentas, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
@@ -163,85 +145,83 @@ pub fn obtener_estadisticas_ventas(
             COALESCE(SUM(CASE WHEN metodo_pago = 'TARJETA' THEN total ELSE 0 END), 0) as ventas_tarjeta,
             COALESCE(SUM(CASE WHEN metodo_pago = 'TRANSFERENCIA' THEN total ELSE 0 END), 0) as ventas_transferencia
         FROM ventas
-        WHERE DATE(fecha_hora) BETWEEN :fecha_inicio AND :fecha_fin
+        WHERE date(fecha_hora) BETWEEN ? AND ?
             AND estado = 'COMPLETADA'
     ";
 
-    let result: Result<Option<(i64, f64, f64, f64, f64, f64)>, _> = conn.exec_first(
-        query,
-        params! {
-            "fecha_inicio" => &fecha_inicio,
-            "fecha_fin" => &fecha_fin,
-        },
-    );
+    let result = conn
+        .query_row(
+            query,
+            params![&fecha_inicio, &fecha_fin],
+            |row| {
+                Ok(EstadisticasVentas {
+                    total_ventas: row.get::<_, i32>(0)?,
+                    monto_total: row.get(1)?,
+                    ticket_promedio: row.get(2)?,
+                    ventas_efectivo: row.get(3)?,
+                    ventas_tarjeta: row.get(4)?,
+                    ventas_transferencia: row.get(5)?,
+                })
+            }
+        )
+        .optional()
+        .map_err(|e| format!("Error al obtener estadísticas: {}", e))?;
 
-    match result {
-        Ok(Some((total_ventas, monto_total, ticket_promedio, ventas_efectivo, ventas_tarjeta, ventas_transferencia))) => {
-            Ok(EstadisticasVentas {
-                total_ventas: total_ventas as i32,
-                monto_total,
-                ticket_promedio,
-                ventas_efectivo,
-                ventas_tarjeta,
-                ventas_transferencia,
-            })
-        }
-        Ok(None) => Ok(EstadisticasVentas {
-            total_ventas: 0,
-            monto_total: 0.0,
-            ticket_promedio: 0.0,
-            ventas_efectivo: 0.0,
-            ventas_tarjeta: 0.0,
-            ventas_transferencia: 0.0,
-        }),
-        Err(e) => Err(format!("Error al obtener estadísticas: {}", e)),
-    }
+    Ok(result.unwrap_or(EstadisticasVentas {
+        total_ventas: 0,
+        monto_total: 0.0,
+        ticket_promedio: 0.0,
+        ventas_efectivo: 0.0,
+        ventas_tarjeta: 0.0,
+        ventas_transferencia: 0.0,
+    }))
 }
 
 // Comando: Obtener ventas de hoy
 #[tauri::command]
 pub fn obtener_ventas_hoy(db: tauri::State<DatabasePool>) -> Result<Vec<VentaResumen>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
             v.id,
             v.folio,
-            DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i') as fecha_hora,
+            strftime('%Y-%m-%d %H:%M', v.fecha_hora) as fecha_hora,
             v.total,
             v.metodo_pago,
             u.nombre_completo as cajero,
             v.estado
         FROM ventas v
         JOIN usuarios u ON v.usuario_id = u.id
-        WHERE DATE(v.fecha_hora) = CURDATE()
+        WHERE date(v.fecha_hora) = date('now')
         ORDER BY v.fecha_hora DESC
     ";
 
-    let result: Result<Vec<(i32, String, String, f64, String, String, String)>, _> = conn.query(query);
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    match result {
-        Ok(rows) => {
-            let ventas = rows
-                .into_iter()
-                .map(|(id, folio, fecha_hora, total, metodo_pago, cajero, estado)| VentaResumen {
-                    id,
-                    folio,
-                    fecha_hora,
-                    total,
-                    metodo_pago,
-                    cajero,
-                    estado,
-                })
-                .collect();
-            Ok(ventas)
-        }
-        Err(e) => Err(format!("Error al obtener ventas: {}", e)),
-    }
+    let ventas_iter = stmt
+        .query_map([], |row| {
+            Ok(VentaResumen {
+                id: row.get(0)?,
+                folio: row.get(1)?,
+                fecha_hora: row.get(2)?,
+                total: row.get(3)?,
+                metodo_pago: row.get(4)?,
+                cajero: row.get(5)?,
+                estado: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Error al obtener ventas: {}", e))?;
+
+    let ventas: Vec<VentaResumen> = ventas_iter
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(ventas)
 }
+
 // Comando: Obtener estadísticas con devoluciones
 #[tauri::command]
 pub fn obtener_estadisticas_con_devoluciones(
@@ -249,10 +229,7 @@ pub fn obtener_estadisticas_con_devoluciones(
     fecha_inicio: String,
     fecha_fin: String,
 ) -> Result<serde_json::Value, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     // Estadísticas de ventas
     let query_ventas = r"
@@ -261,18 +238,23 @@ pub fn obtener_estadisticas_con_devoluciones(
             COALESCE(SUM(total), 0) as total_vendido,
             COALESCE(AVG(total), 0) as ticket_promedio
         FROM ventas
-        WHERE DATE(fecha_hora) BETWEEN :fecha_inicio AND :fecha_fin
+        WHERE date(fecha_hora) BETWEEN ? AND ?
           AND estado = 'COMPLETADA'
     ";
 
-    let ventas_stats: (i64, f64, f64) = conn
-        .exec_first(
+    let ventas_stats = conn
+        .query_row(
             query_ventas,
-            params! {
-                "fecha_inicio" => &fecha_inicio,
-                "fecha_fin" => &fecha_fin,
-            },
+            params![&fecha_inicio, &fecha_fin],
+            |row| {
+                Ok((
+                    row.get::<_, i32>(0)?,
+                    row.get::<_, f64>(1)?,
+                    row.get::<_, f64>(2)?,
+                ))
+            }
         )
+        .optional()
         .map_err(|e| format!("Error al obtener estadísticas de ventas: {}", e))?
         .unwrap_or((0, 0.0, 0.0));
 
@@ -282,18 +264,22 @@ pub fn obtener_estadisticas_con_devoluciones(
             COUNT(*) as total_devoluciones,
             COALESCE(SUM(monto_reembolsado), 0) as total_devuelto
         FROM devoluciones
-        WHERE DATE(fecha_hora) BETWEEN :fecha_inicio AND :fecha_fin
+        WHERE date(fecha_hora) BETWEEN ? AND ?
           AND estado = 'PROCESADA'
     ";
 
-    let dev_stats: (i64, f64) = conn
-        .exec_first(
+    let dev_stats = conn
+        .query_row(
             query_devoluciones,
-            params! {
-                "fecha_inicio" => &fecha_inicio,
-                "fecha_fin" => &fecha_fin,
-            },
+            params![&fecha_inicio, &fecha_fin],
+            |row| {
+                Ok((
+                    row.get::<_, i32>(0)?,
+                    row.get::<_, f64>(1)?,
+                ))
+            }
         )
+        .optional()
         .map_err(|e| format!("Error al obtener estadísticas de devoluciones: {}", e))?
         .unwrap_or((0, 0.0));
 

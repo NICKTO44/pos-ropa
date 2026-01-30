@@ -1,9 +1,8 @@
 // commands/ventas.rs
-// Comandos de ventas
+// Comandos de ventas - SQLite
 
 use crate::database::DatabasePool;
-use mysql::prelude::*;
-use mysql::params;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 // Estructuras
@@ -35,34 +34,30 @@ pub fn procesar_venta(
     cambio: Option<f64>,
     usuario_id: i32,
 ) -> Result<VentaResult, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let mut conn = db.get_conn();
 
     // Iniciar transacción
-    let mut tx = match conn.start_transaction(mysql::TxOpts::default()) {
-        Ok(t) => t,
-        Err(e) => return Err(format!("Error al iniciar transacción: {}", e)),
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| format!("Error al iniciar transacción: {}", e))?;
+
+    // Función auxiliar para rollback en caso de error
+    let rollback_on_error = |conn: &rusqlite::Connection, msg: String| -> String {
+        let _ = conn.execute("ROLLBACK", []);
+        msg
     };
 
     // 1. Generar folio único
     let fecha_actual = chrono::Local::now().format("%Y%m%d").to_string();
     let folio_query = format!(
-        "SELECT COALESCE(MAX(CAST(SUBSTRING(folio, -4) AS UNSIGNED)), 0) + 1 AS siguiente
+        "SELECT COALESCE(MAX(CAST(substr(folio, -4) AS INTEGER)), 0) + 1 AS siguiente
          FROM ventas
          WHERE folio LIKE 'V-{}%'",
         fecha_actual
     );
 
-    let siguiente_numero: u32 = match tx.query_first(&folio_query) {
-        Ok(Some(num)) => num,
-        Ok(None) => 1,
-        Err(e) => {
-            let _ = tx.rollback();
-            return Err(format!("Error al generar folio: {}", e));
-        }
-    };
+    let siguiente_numero: i32 = conn
+        .query_row(&folio_query, [], |row| row.get(0))
+        .unwrap_or(1);
 
     let folio = format!("V-{}-{:04}", fecha_actual, siguiente_numero);
 
@@ -87,32 +82,26 @@ pub fn procesar_venta(
         INSERT INTO ventas (
             folio, subtotal, descuento, total, metodo_pago, 
             monto_recibido, cambio, usuario_id, estado
-        ) VALUES (
-            :folio, :subtotal, :descuento, :total, :metodo_pago,
-            :monto_recibido, :cambio, :usuario_id, 'COMPLETADA'
-        )
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETADA')
     ";
 
-    let venta_result = tx.exec_drop(
+    if let Err(e) = conn.execute(
         insert_venta,
-        params! {
-            "folio" => &folio,
-            "subtotal" => subtotal,
-            "descuento" => descuento_total,
-            "total" => total,
-            "metodo_pago" => &metodo_pago,
-            "monto_recibido" => monto_recibido,
-            "cambio" => cambio,
-            "usuario_id" => usuario_id,
-        },
-    );
-
-    if let Err(e) = venta_result {
-        let _ = tx.rollback();
-        return Err(format!("Error al insertar venta: {}", e));
+        params![
+            &folio,
+            subtotal,
+            descuento_total,
+            total,
+            &metodo_pago,
+            monto_recibido,
+            cambio,
+            usuario_id,
+        ],
+    ) {
+        return Err(rollback_on_error(&conn, format!("Error al insertar venta: {}", e)));
     }
 
-    let venta_id: u64 = tx.last_insert_id().unwrap();
+    let venta_id = conn.last_insert_rowid() as i32;
 
     // 4. Insertar detalles de venta con descuentos
     for producto in &productos {
@@ -128,38 +117,32 @@ pub fn procesar_venta(
             INSERT INTO detalles_venta (
                 venta_id, producto_id, cantidad, precio_unitario, 
                 subtotal, descuento_linea, total_linea
-            ) VALUES (
-                :venta_id, :producto_id, :cantidad, :precio_unitario,
-                :subtotal, :descuento_linea, :total_linea
-            )
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ";
 
-        let detalle_result = tx.exec_drop(
+        if let Err(e) = conn.execute(
             insert_detalle,
-            params! {
-                "venta_id" => venta_id,
-                "producto_id" => producto.id,
-                "cantidad" => cantidad,
-                "precio_unitario" => precio_unitario,
-                "subtotal" => subtotal_linea,
-                "descuento_linea" => descuento_linea,
-                "total_linea" => total_linea,
-            },
-        );
-
-        if let Err(e) = detalle_result {
-            let _ = tx.rollback();
-            return Err(format!("Error al insertar detalle de venta: {}", e));
+            params![
+                venta_id,
+                producto.id,
+                cantidad,
+                precio_unitario,
+                subtotal_linea,
+                descuento_linea,
+                total_linea,
+            ],
+        ) {
+            return Err(rollback_on_error(&conn, format!("Error al insertar detalle de venta: {}", e)));
         }
     }
 
     // 5. Commit de la transacción
-    if let Err(e) = tx.commit() {
+    if let Err(e) = conn.execute("COMMIT", []) {
         return Err(format!("Error al confirmar transacción: {}", e));
     }
 
     Ok(VentaResult {
-        venta_id: venta_id as i32,
+        venta_id,
         folio: folio.clone(),
     })
 }

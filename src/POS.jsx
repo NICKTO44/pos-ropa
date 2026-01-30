@@ -304,8 +304,8 @@ const confirmarLimpiarCarrito = () => {
         <button onClick={onVolver} className="btn-volver">
           ← Volver
         </button>
-        <h2>💰 Punto de Venta</h2>
-        <div className="pos-usuario">👤 {usuario.nombre_completo}</div>
+        <h2> Punto de Venta</h2>
+        <div className="pos-usuario">{usuario.nombre_completo}</div>
       </div>
 
       <div className="pos-content">

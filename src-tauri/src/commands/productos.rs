@@ -1,23 +1,13 @@
-// commands/productos.rs
-// Comandos de productos
 
+use rusqlite::OptionalExtension;
 use crate::database::DatabasePool;
 use crate::models::{Producto, ProductoNuevo, ProductoResponse, ProductosResponse};
-use mysql::prelude::*;
-use mysql::params;
+use rusqlite::params;
 
 // Comando: Obtener todos los productos
 #[tauri::command]
 pub fn obtener_productos(db: tauri::State<DatabasePool>) -> ProductosResponse {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(_) => {
-            return ProductosResponse {
-                success: false,
-                productos: vec![],
-            }
-        }
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
@@ -26,34 +16,40 @@ pub fn obtener_productos(db: tauri::State<DatabasePool>) -> ProductosResponse {
             p.descuento_porcentaje, p.activo
         FROM productos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
-        WHERE p.activo = TRUE
+        WHERE p.activo = 1
         ORDER BY p.nombre
     ";
 
-    let result: Result<Vec<(i32, String, String, Option<String>, f64, i32, i32, i32, Option<String>, f64, bool)>, _> =
-        conn.query(query);
+    let mut stmt = match conn.prepare(query) {
+        Ok(s) => s,
+        Err(_) => {
+            return ProductosResponse {
+                success: false,
+                productos: vec![],
+            }
+        }
+    };
 
-    match result {
-        Ok(rows) => {
-            let productos: Vec<Producto> = rows
-                .into_iter()
-                .map(
-                    |(id, codigo, nombre, descripcion, precio, stock, stock_minimo, categoria_id, categoria_nombre, descuento_porcentaje, activo)| {
-                        Producto {
-                            id,
-                            codigo,
-                            nombre,
-                            descripcion,
-                            precio,
-                            stock,
-                            stock_minimo,
-                            categoria_id,
-                            categoria_nombre,
-                            descuento_porcentaje,
-                            activo,
-                        }
-                    },
-                )
+    let productos_iter = stmt.query_map([], |row| {
+        Ok(Producto {
+            id: row.get(0)?,
+            codigo: row.get(1)?,
+            nombre: row.get(2)?,
+            descripcion: row.get(3)?,
+            precio: row.get(4)?,
+            stock: row.get(5)?,
+            stock_minimo: row.get(6)?,
+            categoria_id: row.get(7)?,
+            categoria_nombre: row.get(8)?,
+            descuento_porcentaje: row.get(9)?,
+            activo: row.get(10)?,
+        })
+    });
+
+    match productos_iter {
+        Ok(iter) => {
+            let productos: Vec<Producto> = iter
+                .filter_map(|r| r.ok())
                 .collect();
 
             ProductosResponse {
@@ -74,16 +70,7 @@ pub fn buscar_producto_por_codigo(
     db: tauri::State<DatabasePool>,
     codigo: String,
 ) -> ProductoResponse {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => {
-            return ProductoResponse {
-                success: false,
-                message: format!("Error de conexión: {}", e),
-                producto: None,
-            }
-        }
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT 
@@ -92,36 +79,42 @@ pub fn buscar_producto_por_codigo(
             p.descuento_porcentaje, p.activo
         FROM productos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
-        WHERE p.codigo = :codigo AND p.activo = TRUE
+        WHERE p.codigo = ? AND p.activo = 1
     ";
 
-    let result: Result<Option<(i32, String, String, Option<String>, f64, i32, i32, i32, Option<String>, f64, bool)>, _> =
-        conn.exec_first(query, params! {
-            "codigo" => codigo,
-        });
-
-    match result {
-        Ok(Some((id, codigo, nombre, descripcion, precio, stock, stock_minimo, categoria_id, categoria_nombre, descuento_porcentaje, activo))) => {
-            let producto = Producto {
-                id,
-                codigo,
-                nombre,
-                descripcion,
-                precio,
-                stock,
-                stock_minimo,
-                categoria_id,
-                categoria_nombre,
-                descuento_porcentaje,
-                activo,
-            };
-
-            ProductoResponse {
-                success: true,
-                message: "Producto encontrado".to_string(),
-                producto: Some(producto),
+    let mut stmt = match conn.prepare(query) {
+        Ok(s) => s,
+        Err(e) => {
+            return ProductoResponse {
+                success: false,
+                message: format!("Error al preparar consulta: {}", e),
+                producto: None,
             }
         }
+    };
+
+    let result = stmt.query_row([codigo], |row| {
+        Ok(Producto {
+            id: row.get(0)?,
+            codigo: row.get(1)?,
+            nombre: row.get(2)?,
+            descripcion: row.get(3)?,
+            precio: row.get(4)?,
+            stock: row.get(5)?,
+            stock_minimo: row.get(6)?,
+            categoria_id: row.get(7)?,
+            categoria_nombre: row.get(8)?,
+            descuento_porcentaje: row.get(9)?,
+            activo: row.get(10)?,
+        })
+    }).optional();
+
+    match result {
+        Ok(Some(producto)) => ProductoResponse {
+            success: true,
+            message: "Producto encontrado".to_string(),
+            producto: Some(producto),
+        },
         Ok(None) => ProductoResponse {
             success: false,
             message: "Producto no encontrado".to_string(),
@@ -141,34 +134,25 @@ pub fn agregar_producto(
     db: tauri::State<DatabasePool>,
     producto: ProductoNuevo,
 ) -> ProductoResponse {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => {
-            return ProductoResponse {
-                success: false,
-                message: format!("Error de conexión: {}", e),
-                producto: None,
-            }
-        }
-    };
+    let conn = db.get_conn();
 
     let query = r"
         INSERT INTO productos (codigo, nombre, descripcion, precio, stock, stock_minimo, categoria_id, descuento_porcentaje)
-        VALUES (:codigo, :nombre, :descripcion, :precio, :stock, :stock_minimo, :categoria_id, :descuento_porcentaje)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ";
 
-    let result = conn.exec_drop(
+    let result = conn.execute(
         query,
-        params! {
-            "codigo" => &producto.codigo,
-            "nombre" => &producto.nombre,
-            "descripcion" => &producto.descripcion,
-            "precio" => producto.precio,
-            "stock" => producto.stock,
-            "stock_minimo" => producto.stock_minimo,
-            "categoria_id" => producto.categoria_id,
-            "descuento_porcentaje" => producto.descuento_porcentaje.unwrap_or(0.0),
-        },
+        params![
+            &producto.codigo,
+            &producto.nombre,
+            &producto.descripcion,
+            producto.precio,
+            producto.stock,
+            producto.stock_minimo,
+            producto.categoria_id,
+            producto.descuento_porcentaje.unwrap_or(0.0),
+        ],
     );
 
     match result {
@@ -188,8 +172,20 @@ pub fn agregar_producto(
 // Comando: Obtener productos con stock bajo
 #[tauri::command]
 pub fn obtener_productos_stock_bajo(db: tauri::State<DatabasePool>) -> ProductosResponse {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
+    let conn = db.get_conn();
+
+    let query = r"
+        SELECT 
+            p.id, p.codigo, p.nombre, p.stock, p.stock_minimo, c.nombre as categoria,
+            (p.stock - p.stock_minimo) as diferencia
+        FROM productos p
+        LEFT JOIN categorias c ON p.categoria_id = c.id
+        WHERE p.activo = 1 AND p.stock <= p.stock_minimo
+        ORDER BY diferencia, p.nombre
+    ";
+
+    let mut stmt = match conn.prepare(query) {
+        Ok(s) => s,
         Err(_) => {
             return ProductosResponse {
                 success: false,
@@ -198,27 +194,26 @@ pub fn obtener_productos_stock_bajo(db: tauri::State<DatabasePool>) -> Productos
         }
     };
 
-    let query = "SELECT * FROM v_productos_stock_bajo";
+    let productos_iter = stmt.query_map([], |row| {
+        Ok(Producto {
+            id: row.get(0)?,
+            codigo: row.get(1)?,
+            nombre: row.get(2)?,
+            descripcion: None,
+            precio: 0.0,
+            stock: row.get(3)?,
+            stock_minimo: row.get(4)?,
+            categoria_id: 0,
+            categoria_nombre: row.get::<_, Option<String>>(5)?,
+            descuento_porcentaje: 0.0,
+            activo: true,
+        })
+    });
 
-    let result: Result<Vec<(i32, String, String, i32, i32, String, i32)>, _> = conn.query(query);
-
-    match result {
-        Ok(rows) => {
-            let productos: Vec<Producto> = rows
-                .into_iter()
-                .map(|(id, codigo, nombre, stock, stock_minimo, categoria, _)| Producto {
-                    id,
-                    codigo,
-                    nombre,
-                    descripcion: None,
-                    precio: 0.0,
-                    stock,
-                    stock_minimo,
-                    categoria_id: 0,
-                    categoria_nombre: Some(categoria),
-                    descuento_porcentaje: 0.0,
-                    activo: true,
-                })
+    match productos_iter {
+        Ok(iter) => {
+            let productos: Vec<Producto> = iter
+                .filter_map(|r| r.ok())
                 .collect();
 
             ProductosResponse {
@@ -247,43 +242,34 @@ pub fn actualizar_producto(
     categoria_id: i32,
     descuento_porcentaje: Option<f64>,
 ) -> ProductoResponse {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => {
-            return ProductoResponse {
-                success: false,
-                message: format!("Error de conexión: {}", e),
-                producto: None,
-            }
-        }
-    };
+    let conn = db.get_conn();
 
     let query = r"
         UPDATE productos 
-        SET codigo = :codigo, 
-            nombre = :nombre, 
-            descripcion = :descripcion, 
-            precio = :precio, 
-            stock = :stock, 
-            stock_minimo = :stock_minimo, 
-            categoria_id = :categoria_id,
-            descuento_porcentaje = :descuento_porcentaje
-        WHERE id = :id
+        SET codigo = ?, 
+            nombre = ?, 
+            descripcion = ?, 
+            precio = ?, 
+            stock = ?, 
+            stock_minimo = ?, 
+            categoria_id = ?,
+            descuento_porcentaje = ?
+        WHERE id = ?
     ";
 
-    let result = conn.exec_drop(
+    let result = conn.execute(
         query,
-        params! {
-            "id" => producto_id,
-            "codigo" => &codigo,
-            "nombre" => &nombre,
-            "descripcion" => &descripcion,
-            "precio" => precio,
-            "stock" => stock,
-            "stock_minimo" => stock_minimo,
-            "categoria_id" => categoria_id,
-            "descuento_porcentaje" => descuento_porcentaje.unwrap_or(0.0),
-        },
+        params![
+            &codigo,
+            &nombre,
+            &descripcion,
+            precio,
+            stock,
+            stock_minimo,
+            categoria_id,
+            descuento_porcentaje.unwrap_or(0.0),
+            producto_id,
+        ],
     );
 
     match result {
@@ -303,36 +289,49 @@ pub fn actualizar_producto(
 // Comando: Obtener categorías (nombres únicos desde tabla categorias)
 #[tauri::command]
 pub fn obtener_categorias(db: tauri::State<DatabasePool>) -> Result<Vec<(i32, String)>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = "SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre";
     
-    // Retornar tuplas (id, nombre)
-    let categorias: Vec<(i32, String)> = conn
-        .query(query)
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
+    
+    let categorias_iter = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|e| format!("Error al obtener categorías: {}", e))?;
+    
+    let categorias: Vec<(i32, String)> = categorias_iter
+        .filter_map(|r| r.ok())
+        .collect();
     
     Ok(categorias)
 }
+
 // Comando: Obtener solo nombres de categorías (para filtros)
 #[tauri::command]
 pub fn obtener_nombres_categorias(db: tauri::State<DatabasePool>) -> Result<Vec<String>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = "SELECT nombre FROM categorias WHERE activo = 1 ORDER BY nombre";
     
-    let categorias: Vec<String> = conn
-        .query_map(query, |nombre: String| nombre)
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
+    
+    let categorias_iter = stmt
+        .query_map([], |row| row.get::<_, String>(0))
         .map_err(|e| format!("Error al obtener categorías: {}", e))?;
+    
+    let categorias: Vec<String> = categorias_iter
+        .filter_map(|r| r.ok())
+        .collect();
     
     Ok(categorias)
 }
+
 // Comando: Buscar productos con filtros (nombre, código, categoría)
 #[tauri::command]
 pub fn buscar_productos_filtrado(
@@ -340,10 +339,7 @@ pub fn buscar_productos_filtrado(
     termino: String,
     categoria: Option<String>,
 ) -> Result<Vec<Producto>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let mut query = String::from(r"
         SELECT 
@@ -356,21 +352,16 @@ pub fn buscar_productos_filtrado(
     ");
 
     let mut conditions = Vec::new();
-    let mut params_vec: Vec<(&str, mysql::Value)> = Vec::new();
 
     // Filtro por término de búsqueda (nombre o código)
     if !termino.is_empty() {
-        conditions.push("(p.nombre LIKE :termino OR p.codigo LIKE :codigo)");
-        let like_term = format!("%{}%", termino);
-        params_vec.push(("termino", mysql::Value::from(like_term.clone())));
-        params_vec.push(("codigo", mysql::Value::from(like_term)));
+        conditions.push(format!("(p.nombre LIKE '%{}%' OR p.codigo LIKE '%{}%')", termino, termino));
     }
 
     // Filtro por categoría
     if let Some(cat) = categoria {
         if !cat.is_empty() && cat != "TODAS" {
-            conditions.push("c.nombre = :categoria");
-            params_vec.push(("categoria", mysql::Value::from(cat)));
+            conditions.push(format!("c.nombre = '{}'", cat));
         }
     }
 
@@ -381,28 +372,31 @@ pub fn buscar_productos_filtrado(
 
     query.push_str(" ORDER BY p.nombre LIMIT 100");
 
-    let productos: Vec<(i32, String, String, Option<String>, f64, i32, i32, i32, Option<String>, f64, bool)> = conn
-        .exec(&query, params_vec)
-        .map_err(|e| format!("Error al buscar productos: {}", e))?;
+    let mut stmt = conn
+        .prepare(&query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    let resultado: Vec<Producto> = productos
-        .into_iter()
-        .map(|(id, codigo, nombre, descripcion, precio, stock, stock_minimo, categoria_id, categoria_nombre, descuento_porcentaje, activo)| {
-            Producto {
-                id,
-                codigo,
-                nombre,
-                descripcion,
-                precio,
-                stock,
-                stock_minimo,
-                categoria_id,
-                categoria_nombre,
-                descuento_porcentaje,
-                activo,
-            }
+    let productos_iter = stmt
+        .query_map([], |row| {
+            Ok(Producto {
+                id: row.get(0)?,
+                codigo: row.get(1)?,
+                nombre: row.get(2)?,
+                descripcion: row.get(3)?,
+                precio: row.get(4)?,
+                stock: row.get(5)?,
+                stock_minimo: row.get(6)?,
+                categoria_id: row.get(7)?,
+                categoria_nombre: row.get(8)?,
+                descuento_porcentaje: row.get(9)?,
+                activo: row.get(10)?,
+            })
         })
+        .map_err(|e| format!("Error al ejecutar consulta: {}", e))?;
+
+    let productos: Vec<Producto> = productos_iter
+        .filter_map(|r| r.ok())
         .collect();
 
-    Ok(resultado)
+    Ok(productos)
 }

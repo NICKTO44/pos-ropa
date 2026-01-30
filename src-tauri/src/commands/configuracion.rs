@@ -1,9 +1,7 @@
-// commands/configuracion.rs
-// Comandos de configuración
 
+use rusqlite::OptionalExtension;
 use crate::database::DatabasePool;
-use mysql::prelude::*;
-use mysql::params;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,30 +45,26 @@ pub struct Rol {
 pub fn obtener_configuracion_tienda(
     db: tauri::State<DatabasePool>,
 ) -> Result<ConfiguracionTienda, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = "SELECT id, nombre_tienda, direccion, telefono, email, rfc, mensaje_recibo FROM configuracion_tienda LIMIT 1";
     
-    let result: Result<Option<(i32, String, String, String, String, String, String)>, _> = conn.query_first(query);
-
-    match result {
-        Ok(Some((id, nombre_tienda, direccion, telefono, email, rfc, mensaje_recibo))) => {
+    let result = conn
+        .query_row(query, [], |row| {
             Ok(ConfiguracionTienda {
-                id,
-                nombre_tienda,
-                direccion,
-                telefono,
-                email,
-                rfc,
-                mensaje_recibo,
+                id: row.get(0)?,
+                nombre_tienda: row.get(1)?,
+                direccion: row.get(2)?,
+                telefono: row.get(3)?,
+                email: row.get(4)?,
+                rfc: row.get(5)?,
+                mensaje_recibo: row.get(6)?,
             })
-        }
-        Ok(None) => Err("No hay configuración registrada".to_string()),
-        Err(e) => Err(format!("Error al obtener configuración: {}", e)),
-    }
+        })
+        .optional()
+        .map_err(|e| format!("Error al obtener configuración: {}", e))?;
+
+    result.ok_or_else(|| "No hay configuración registrada".to_string())
 }
 
 // Comando: Actualizar configuración de la tienda
@@ -84,38 +78,33 @@ pub fn actualizar_configuracion_tienda(
     rfc: String,
     mensaje_recibo: String,
 ) -> Result<String, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         UPDATE configuracion_tienda 
-        SET nombre_tienda = :nombre_tienda,
-            direccion = :direccion,
-            telefono = :telefono,
-            email = :email,
-            rfc = :rfc,
-            mensaje_recibo = :mensaje_recibo
+        SET nombre_tienda = ?,
+            direccion = ?,
+            telefono = ?,
+            email = ?,
+            rfc = ?,
+            mensaje_recibo = ?
         WHERE id = 1
     ";
 
-    let result = conn.exec_drop(
+    conn.execute(
         query,
-        params! {
-            "nombre_tienda" => &nombre_tienda,
-            "direccion" => &direccion,
-            "telefono" => &telefono,
-            "email" => &email,
-            "rfc" => &rfc,
-            "mensaje_recibo" => &mensaje_recibo,
-        },
-    );
+        params![
+            &nombre_tienda,
+            &direccion,
+            &telefono,
+            &email,
+            &rfc,
+            &mensaje_recibo,
+        ],
+    )
+    .map_err(|e| format!("Error al actualizar configuración: {}", e))?;
 
-    match result {
-        Ok(_) => Ok("Configuración actualizada exitosamente".to_string()),
-        Err(e) => Err(format!("Error al actualizar configuración: {}", e)),
-    }
+    Ok("Configuración actualizada exitosamente".to_string())
 }
 
 // Comando: Agregar categoría
@@ -125,25 +114,14 @@ pub fn agregar_categoria(
     nombre: String,
     descripcion: Option<String>,
 ) -> Result<String, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
-    let query = "INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)";
+    let query = "INSERT INTO categorias (nombre, descripcion) VALUES (?, ?)";
 
-    let result = conn.exec_drop(
-        query,
-        params! {
-            "nombre" => &nombre,
-            "descripcion" => &descripcion,
-        },
-    );
+    conn.execute(query, params![&nombre, &descripcion])
+        .map_err(|e| format!("Error al agregar categoría: {}", e))?;
 
-    match result {
-        Ok(_) => Ok("Categoría agregada exitosamente".to_string()),
-        Err(e) => Err(format!("Error al agregar categoría: {}", e)),
-    }
+    Ok("Categoría agregada exitosamente".to_string())
 }
 
 // Comando: Actualizar categoría
@@ -154,39 +132,24 @@ pub fn actualizar_categoria(
     nombre: String,
     descripcion: Option<String>,
 ) -> Result<String, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         UPDATE categorias 
-        SET nombre = :nombre, descripcion = :descripcion
-        WHERE id = :id
+        SET nombre = ?, descripcion = ?
+        WHERE id = ?
     ";
 
-    let result = conn.exec_drop(
-        query,
-        params! {
-            "id" => categoria_id,
-            "nombre" => &nombre,
-            "descripcion" => &descripcion,
-        },
-    );
+    conn.execute(query, params![&nombre, &descripcion, categoria_id])
+        .map_err(|e| format!("Error al actualizar categoría: {}", e))?;
 
-    match result {
-        Ok(_) => Ok("Categoría actualizada exitosamente".to_string()),
-        Err(e) => Err(format!("Error al actualizar categoría: {}", e)),
-    }
+    Ok("Categoría actualizada exitosamente".to_string())
 }
 
 // Comando: Obtener todos los usuarios
 #[tauri::command]
 pub fn obtener_usuarios(db: tauri::State<DatabasePool>) -> Result<Vec<Usuario>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     let query = r"
         SELECT u.id, u.username, u.nombre_completo, u.email, u.rol_id, r.nombre as rol_nombre, u.activo
@@ -195,50 +158,56 @@ pub fn obtener_usuarios(db: tauri::State<DatabasePool>) -> Result<Vec<Usuario>, 
         ORDER BY u.nombre_completo
     ";
 
-    let result: Result<Vec<(i32, String, String, Option<String>, i32, String, bool)>, _> = conn.query(query);
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    match result {
-        Ok(rows) => {
-            let usuarios = rows
-                .into_iter()
-                .map(|(id, username, nombre_completo, email, rol_id, rol_nombre, activo)| Usuario {
-                    id,
-                    username,
-                    nombre_completo,
-                    email,
-                    rol_id,
-                    rol_nombre,
-                    activo,
-                })
-                .collect();
-            Ok(usuarios)
-        }
-        Err(e) => Err(format!("Error al obtener usuarios: {}", e)),
-    }
+    let usuarios_iter = stmt
+        .query_map([], |row| {
+            Ok(Usuario {
+                id: row.get(0)?,
+                username: row.get(1)?,
+                nombre_completo: row.get(2)?,
+                email: row.get(3)?,
+                rol_id: row.get(4)?,
+                rol_nombre: row.get(5)?,
+                activo: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Error al obtener usuarios: {}", e))?;
+
+    let usuarios: Vec<Usuario> = usuarios_iter
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(usuarios)
 }
 
 // Comando: Obtener todos los roles
 #[tauri::command]
 pub fn obtener_roles(db: tauri::State<DatabasePool>) -> Result<Vec<Rol>, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
-    let query = "SELECT id, nombre FROM roles WHERE activo = TRUE ORDER BY nombre";
+    let query = "SELECT id, nombre FROM roles WHERE activo = 1 ORDER BY nombre";
     
-    let result: Result<Vec<(i32, String)>, _> = conn.query(query);
+    let mut stmt = conn
+        .prepare(query)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
 
-    match result {
-        Ok(rows) => {
-            let roles = rows
-                .into_iter()
-                .map(|(id, nombre)| Rol { id, nombre })
-                .collect();
-            Ok(roles)
-        }
-        Err(e) => Err(format!("Error al obtener roles: {}", e)),
-    }
+    let roles_iter = stmt
+        .query_map([], |row| {
+            Ok(Rol {
+                id: row.get(0)?,
+                nombre: row.get(1)?,
+            })
+        })
+        .map_err(|e| format!("Error al obtener roles: {}", e))?;
+
+    let roles: Vec<Rol> = roles_iter
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(roles)
 }
 
 // Comando: Agregar usuario
@@ -251,10 +220,7 @@ pub fn agregar_usuario(
     email: Option<String>,
     rol_id: i32,
 ) -> Result<String, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     // Hashear password con bcrypt
     let password_hash = bcrypt::hash(&password, bcrypt::DEFAULT_COST)
@@ -262,24 +228,16 @@ pub fn agregar_usuario(
 
     let query = r"
         INSERT INTO usuarios (username, password_hash, nombre_completo, email, rol_id)
-        VALUES (:username, :password_hash, :nombre_completo, :email, :rol_id)
+        VALUES (?, ?, ?, ?, ?)
     ";
 
-    let result = conn.exec_drop(
+    conn.execute(
         query,
-        params! {
-            "username" => &username,
-            "password_hash" => &password_hash,
-            "nombre_completo" => &nombre_completo,
-            "email" => &email,
-            "rol_id" => rol_id,
-        },
-    );
+        params![&username, &password_hash, &nombre_completo, &email, rol_id],
+    )
+    .map_err(|e| format!("Error al agregar usuario: {}", e))?;
 
-    match result {
-        Ok(_) => Ok("Usuario agregado exitosamente".to_string()),
-        Err(e) => Err(format!("Error al agregar usuario: {}", e)),
-    }
+    Ok("Usuario agregado exitosamente".to_string())
 }
 
 // Comando: Actualizar usuario
@@ -293,52 +251,42 @@ pub fn actualizar_usuario(
     rol_id: i32,
     nueva_password: Option<String>,
 ) -> Result<String, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
-    let query = if let Some(pass) = nueva_password {
+    if let Some(pass) = nueva_password {
         let password_hash = bcrypt::hash(&pass, bcrypt::DEFAULT_COST)
             .map_err(|e| format!("Error al hashear contraseña: {}", e))?;
         
-        conn.exec_drop(
+        conn.execute(
             r"UPDATE usuarios 
-              SET username = :username, 
-                  nombre_completo = :nombre_completo, 
-                  email = :email, 
-                  rol_id = :rol_id,
-                  password_hash = :password_hash
-              WHERE id = :id",
-            params! {
-                "id" => usuario_id,
-                "username" => &username,
-                "nombre_completo" => &nombre_completo,
-                "email" => &email,
-                "rol_id" => rol_id,
-                "password_hash" => &password_hash,
-            },
+              SET username = ?, 
+                  nombre_completo = ?, 
+                  email = ?, 
+                  rol_id = ?,
+                  password_hash = ?
+              WHERE id = ?",
+            params![
+                &username,
+                &nombre_completo,
+                &email,
+                rol_id,
+                &password_hash,
+                usuario_id,
+            ],
         )
+        .map_err(|e| format!("Error al actualizar usuario: {}", e))?;
     } else {
-        conn.exec_drop(
+        conn.execute(
             r"UPDATE usuarios 
-              SET username = :username, 
-                  nombre_completo = :nombre_completo, 
-                  email = :email, 
-                  rol_id = :rol_id
-              WHERE id = :id",
-            params! {
-                "id" => usuario_id,
-                "username" => &username,
-                "nombre_completo" => &nombre_completo,
-                "email" => &email,
-                "rol_id" => rol_id,
-            },
+              SET username = ?, 
+                  nombre_completo = ?, 
+                  email = ?, 
+                  rol_id = ?
+              WHERE id = ?",
+            params![&username, &nombre_completo, &email, rol_id, usuario_id],
         )
-    };
-
-    match query {
-        Ok(_) => Ok("Usuario actualizado exitosamente".to_string()),
-        Err(e) => Err(format!("Error al actualizar usuario: {}", e)),
+        .map_err(|e| format!("Error al actualizar usuario: {}", e))?;
     }
+
+    Ok("Usuario actualizado exitosamente".to_string())
 }

@@ -99,8 +99,8 @@ function Reportes({ usuario, onVolver }) {
         <button onClick={onVolver} className="btn-volver">
           ← Volver
         </button>
-        <h2>📊 Reportes de Ventas</h2>
-        <div className="reportes-usuario">👤 {usuario.nombre_completo}</div>
+        <h2>Reportes de Ventas</h2>
+        <div className="reportes-usuario"> {usuario.nombre_completo}</div>
       </div>
 
       <div className="reportes-content">

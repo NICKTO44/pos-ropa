@@ -11,7 +11,7 @@ function Configuracion({ usuario, onVolver }) {
           <button onClick={onVolver} className="btn-volver">
             ← Volver
           </button>
-          <h2>⚙️ Configuración del Sistema</h2>
+          <h2>Configuración del Sistema</h2>
         </div>
         <div style={{ padding: '60px', textAlign: 'center' }}>
           <h2>🔒 Acceso Denegado</h2>
@@ -240,7 +240,7 @@ function Configuracion({ usuario, onVolver }) {
           ← Volver
         </button>
         <h2>⚙️ Configuración del Sistema</h2>
-        <div className="configuracion-usuario">👤 {usuario.nombre_completo}</div>
+        <div className="configuracion-usuario">{usuario.nombre_completo}</div>
       </div>
 
       <div className="configuracion-content">

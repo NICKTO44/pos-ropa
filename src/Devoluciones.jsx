@@ -132,8 +132,8 @@ function Devoluciones({ usuario, onVolver }) {
         <button onClick={onVolver} className="btn-volver">
           ← Volver
         </button>
-        <h2>🔄 Devoluciones</h2>
-        <div className="devoluciones-usuario">👤 {usuario.nombre_completo}</div>
+        <h2>Devoluciones</h2>
+        <div className="devoluciones-usuario"> {usuario.nombre_completo}</div>
       </div>
 
       <div className="devoluciones-content">

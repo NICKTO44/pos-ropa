@@ -23,7 +23,7 @@
 }
 
 .devoluciones-header {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    background: linear-gradient(180deg, #030614 0%, #22345c 100%);
   padding: 0 30px;
   height: 70px;
   display: flex;
@@ -62,9 +62,8 @@
 .devoluciones-usuario {
   font-size: 14px;
   font-weight: 500;
-  color: white;
+  color: rgb(75, 73, 73);
   padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   backdrop-filter: blur(10px);
 }

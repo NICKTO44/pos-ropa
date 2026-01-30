@@ -1,9 +1,7 @@
-// commands/devoluciones.rs
-// Comandos de devoluciones
 
+use rusqlite::OptionalExtension;
 use crate::database::DatabasePool;
-use mysql::prelude::*;
-use mysql::params;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,20 +42,30 @@ pub fn buscar_venta_para_devolucion(
     db: tauri::State<DatabasePool>,
     folio: String,
 ) -> Result<VentaParaDevolucion, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let conn = db.get_conn();
 
     // Obtener datos de la venta
     let query_venta = r"
-        SELECT id, folio, DATE_FORMAT(fecha_hora, '%Y-%m-%d %H:%i:%s') as fecha_hora, total, metodo_pago
+        SELECT id, folio, strftime('%Y-%m-%d %H:%M:%S', fecha_hora) as fecha_hora, total, metodo_pago
         FROM ventas
-        WHERE folio = :folio AND estado = 'COMPLETADA'
+        WHERE folio = ? AND estado = 'COMPLETADA'
     ";
 
-    let venta: Option<(i32, String, String, f64, String)> = conn
-        .exec_first(query_venta, params! { "folio" => &folio })
+    let mut stmt_venta = conn
+        .prepare(query_venta)
+        .map_err(|e| format!("Error al preparar consulta: {}", e))?;
+
+    let venta = stmt_venta
+        .query_row([&folio], |row| {
+            Ok((
+                row.get::<_, i32>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, f64>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })
+        .optional()
         .map_err(|e| format!("Error al buscar venta: {}", e))?;
 
     let (venta_id, folio, fecha_hora, total, metodo_pago) = match venta {
@@ -75,24 +83,27 @@ pub fn buscar_venta_para_devolucion(
             dv.total_linea
         FROM detalles_venta dv
         JOIN productos p ON dv.producto_id = p.id
-        WHERE dv.venta_id = :venta_id
+        WHERE dv.venta_id = ?
     ";
 
-    let productos: Vec<(i32, String, i32, f64, f64)> = conn
-        .exec(query_productos, params! { "venta_id" => venta_id })
+    let mut stmt_productos = conn
+        .prepare(query_productos)
+        .map_err(|e| format!("Error al preparar consulta de productos: {}", e))?;
+
+    let productos_iter = stmt_productos
+        .query_map([venta_id], |row| {
+            Ok(ProductoVentaDetalle {
+                producto_id: row.get(0)?,
+                nombre: row.get(1)?,
+                cantidad: row.get(2)?,
+                precio_unitario: row.get(3)?,
+                subtotal: row.get(4)?,
+            })
+        })
         .map_err(|e| format!("Error al obtener productos: {}", e))?;
 
-    let productos_detalle: Vec<ProductoVentaDetalle> = productos
-        .into_iter()
-        .map(|(producto_id, nombre, cantidad, precio_unitario, subtotal)| {
-            ProductoVentaDetalle {
-                producto_id,
-                nombre,
-                cantidad,
-                precio_unitario,
-                subtotal,
-            }
-        })
+    let productos_detalle: Vec<ProductoVentaDetalle> = productos_iter
+        .filter_map(|r| r.ok())
         .collect();
 
     Ok(VentaParaDevolucion {
@@ -118,34 +129,30 @@ pub fn procesar_devolucion(
     #[allow(non_snake_case)]
     usuarioId: i32,
 ) -> Result<DevolucionResponse, String> {
-    let mut conn = match db.get_conn() {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Error de conexión: {}", e)),
-    };
+    let mut conn = db.get_conn();
 
     // Iniciar transacción
-    let mut tx = match conn.start_transaction(mysql::TxOpts::default()) {
-        Ok(t) => t,
-        Err(e) => return Err(format!("Error al iniciar transacción: {}", e)),
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| format!("Error al iniciar transacción: {}", e))?;
+
+    // Función auxiliar para rollback
+    let rollback_on_error = |conn: &rusqlite::Connection, msg: String| -> String {
+        let _ = conn.execute("ROLLBACK", []);
+        msg
     };
 
     // Generar folio de devolución
     let fecha_actual = chrono::Local::now().format("%Y%m%d").to_string();
     let folio_query = format!(
-        "SELECT COALESCE(MAX(CAST(SUBSTRING(folio_devolucion, -4) AS UNSIGNED)), 0) + 1 AS siguiente
+        "SELECT COALESCE(MAX(CAST(substr(folio_devolucion, -4) AS INTEGER)), 0) + 1 AS siguiente
          FROM devoluciones
          WHERE folio_devolucion LIKE 'DEV-{}%'",
         fecha_actual
     );
 
-    let siguiente_numero: u32 = match tx.query_first(&folio_query) {
-        Ok(Some(num)) => num,
-        Ok(None) => 1,
-        Err(e) => {
-            let _ = tx.rollback();
-            return Err(format!("Error al generar folio: {}", e));
-        }
-    };
+    let siguiente_numero: i32 = conn
+        .query_row(&folio_query, [], |row| row.get(0))
+        .unwrap_or(1);
 
     let folio_devolucion = format!("DEV-{}-{:04}", fecha_actual, siguiente_numero);
 
@@ -158,49 +165,53 @@ pub fn procesar_devolucion(
             SELECT COALESCE(SUM(dd.cantidad_devuelta), 0) as total_devuelto
             FROM detalles_devolucion dd
             JOIN devoluciones d ON dd.devolucion_id = d.id
-            WHERE d.venta_original_id = :venta_id 
-              AND dd.producto_id = :producto_id
+            WHERE d.venta_original_id = ? 
+              AND dd.producto_id = ?
               AND d.estado = 'PROCESADA'
         ";
 
-        let ya_devuelto: i32 = tx
-            .exec_first(
+        let ya_devuelto: i32 = conn
+            .query_row(
                 query_devuelto,
-                params! {
-                    "venta_id" => ventaId,
-                    "producto_id" => producto.producto_id,
-                },
+                params![ventaId, producto.producto_id],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Error al verificar devoluciones: {}", e))?
             .unwrap_or(0);
 
         // Obtener cantidad original comprada
         let query_cantidad_original = r"
             SELECT cantidad
             FROM detalles_venta
-            WHERE venta_id = :venta_id AND producto_id = :producto_id
+            WHERE venta_id = ? AND producto_id = ?
         ";
 
-        let cantidad_original: i32 = tx
-            .exec_first(
+        let cantidad_original: Option<i32> = conn
+            .query_row(
                 query_cantidad_original,
-                params! {
-                    "venta_id" => ventaId,
-                    "producto_id" => producto.producto_id,
-                },
+                params![ventaId, producto.producto_id],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Error al obtener cantidad original: {}", e))?
-            .ok_or("Producto no encontrado en venta")?;
+            .optional()
+            .map_err(|e| rollback_on_error(&conn, format!("Error al obtener cantidad original: {}", e)))?;
+
+        let cantidad_original = match cantidad_original {
+            Some(c) => c,
+            None => {
+                return Err(rollback_on_error(&conn, "Producto no encontrado en venta".to_string()));
+            }
+        };
 
         // Validar que no se devuelva más de lo comprado
         if ya_devuelto + producto.cantidad > cantidad_original {
-            let _ = tx.rollback();
-            return Err(format!(
-                "No puedes devolver {} unidades. Compradas: {}, Ya devueltas: {}, Disponibles: {}",
-                producto.cantidad,
-                cantidad_original,
-                ya_devuelto,
-                cantidad_original - ya_devuelto
+            return Err(rollback_on_error(
+                &conn,
+                format!(
+                    "No puedes devolver {} unidades. Compradas: {}, Ya devueltas: {}, Disponibles: {}",
+                    producto.cantidad,
+                    cantidad_original,
+                    ya_devuelto,
+                    cantidad_original - ya_devuelto
+                ),
             ));
         }
 
@@ -208,19 +219,24 @@ pub fn procesar_devolucion(
         let query_precio = r"
             SELECT precio_unitario
             FROM detalles_venta
-            WHERE venta_id = :venta_id AND producto_id = :producto_id
+            WHERE venta_id = ? AND producto_id = ?
         ";
 
-        let precio_unitario: f64 = tx
-            .exec_first(
+        let precio_unitario: Option<f64> = conn
+            .query_row(
                 query_precio,
-                params! {
-                    "venta_id" => ventaId,
-                    "producto_id" => producto.producto_id,
-                },
+                params![ventaId, producto.producto_id],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Error al obtener precio: {}", e))?
-            .ok_or("Producto no encontrado en la venta")?;
+            .optional()
+            .map_err(|e| rollback_on_error(&conn, format!("Error al obtener precio: {}", e)))?;
+
+        let precio_unitario = match precio_unitario {
+            Some(p) => p,
+            None => {
+                return Err(rollback_on_error(&conn, "Producto no encontrado en la venta".to_string()));
+            }
+        };
 
         let subtotal = precio_unitario * producto.cantidad as f64;
         monto_total += subtotal;
@@ -231,25 +247,17 @@ pub fn procesar_devolucion(
         INSERT INTO devoluciones (
             venta_original_id, folio_devolucion, monto_reembolsado,
             metodo_reembolso, motivo, usuario_id, estado
-        ) VALUES (
-            :venta_id, :folio_devolucion, :monto_reembolsado,
-            'EFECTIVO', :motivo, :usuario_id, 'PROCESADA'
-        )
+        ) VALUES (?, ?, ?, 'EFECTIVO', ?, ?, 'PROCESADA')
     ";
 
-    tx.exec_drop(
+    if let Err(e) = conn.execute(
         insert_devolucion,
-        params! {
-            "venta_id" => ventaId,
-            "folio_devolucion" => &folio_devolucion,
-            "monto_reembolsado" => monto_total,
-            "motivo" => &motivo,
-            "usuario_id" => usuarioId,
-        },
-    )
-    .map_err(|e| format!("Error al insertar devolución: {}", e))?;
+        params![ventaId, &folio_devolucion, monto_total, &motivo, usuarioId],
+    ) {
+        return Err(rollback_on_error(&conn, format!("Error al insertar devolución: {}", e)));
+    }
 
-    let devolucion_id = tx.last_insert_id().unwrap();
+    let devolucion_id = conn.last_insert_rowid() as i32;
 
     // Insertar detalles y actualizar stock
     for producto in &productos {
@@ -257,70 +265,59 @@ pub fn procesar_devolucion(
         let query_precio = r"
             SELECT precio_unitario
             FROM detalles_venta
-            WHERE venta_id = :venta_id AND producto_id = :producto_id
+            WHERE venta_id = ? AND producto_id = ?
         ";
 
-        let precio_unitario: f64 = tx
-            .exec_first(
+        let precio_unitario: f64 = conn
+            .query_row(
                 query_precio,
-                params! {
-                    "venta_id" => ventaId,
-                    "producto_id" => producto.producto_id,
-                },
+                params![ventaId, producto.producto_id],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Error al obtener precio: {}", e))?
-            .ok_or("Precio no encontrado")?;
+            .map_err(|e| rollback_on_error(&conn, format!("Error al obtener precio: {}", e)))?;
 
         let subtotal = precio_unitario * producto.cantidad as f64;
 
         // Insertar detalle de devolución
         let insert_detalle = r"
             INSERT INTO detalles_devolucion (
-                devolucion_id, producto_id, cantidad_devuelta,
+                devolucion_id, producto_id, venta_id, cantidad_devuelta,
                 precio_unitario, subtotal, condicion
-            ) VALUES (
-                :devolucion_id, :producto_id, :cantidad_devuelta,
-                :precio_unitario, :subtotal, 'REVENTA'
-            )
+            ) VALUES (?, ?, ?, ?, ?, ?, 'REVENTA')
         ";
 
-        tx.exec_drop(
+        if let Err(e) = conn.execute(
             insert_detalle,
-            params! {
-                "devolucion_id" => devolucion_id,
-                "producto_id" => producto.producto_id,
-                "cantidad_devuelta" => producto.cantidad,
-                "precio_unitario" => precio_unitario,
-                "subtotal" => subtotal,
-            },
-        )
-        .map_err(|e| format!("Error al insertar detalle: {}", e))?;
+            params![
+                devolucion_id,
+                producto.producto_id,
+                ventaId,
+                producto.cantidad,
+                precio_unitario,
+                subtotal,
+            ],
+        ) {
+            return Err(rollback_on_error(&conn, format!("Error al insertar detalle: {}", e)));
+        }
 
-        // Actualizar stock (AUTOMÁTICO)
+        // Actualizar stock (AUTOMÁTICO - el trigger lo maneja, pero lo hacemos manual aquí)
         let update_stock = r"
             UPDATE productos
-            SET stock = stock + :cantidad
-            WHERE id = :producto_id
+            SET stock = stock + ?
+            WHERE id = ?
         ";
 
-        tx.exec_drop(
-            update_stock,
-            params! {
-                "cantidad" => producto.cantidad,
-                "producto_id" => producto.producto_id,
-            },
-        )
-        .map_err(|e| format!("Error al actualizar stock: {}", e))?;
+        if let Err(e) = conn.execute(update_stock, params![producto.cantidad, producto.producto_id]) {
+            return Err(rollback_on_error(&conn, format!("Error al actualizar stock: {}", e)));
+        }
 
         // Obtener stock anterior y nuevo
-        let stock_nuevo: i32 = tx
-            .exec_first(
-                "SELECT stock FROM productos WHERE id = :producto_id",
-                params! {
-                    "producto_id" => producto.producto_id,
-                },
+        let stock_nuevo: i32 = conn
+            .query_row(
+                "SELECT stock FROM productos WHERE id = ?",
+                params![producto.producto_id],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Error al obtener stock: {}", e))?
             .unwrap_or(0);
 
         let stock_anterior = stock_nuevo - producto.cantidad;
@@ -330,29 +327,28 @@ pub fn procesar_devolucion(
             INSERT INTO movimientos_inventario (
                 producto_id, tipo_movimiento, cantidad,
                 stock_anterior, stock_nuevo, referencia, usuario_id
-            ) VALUES (
-                :producto_id, 'DEVOLUCION', :cantidad,
-                :stock_anterior, :stock_nuevo, :folio_devolucion, :usuario_id
-            )
+            ) VALUES (?, 'DEVOLUCION', ?, ?, ?, ?, ?)
         ";
 
-        tx.exec_drop(
+        if let Err(e) = conn.execute(
             insert_movimiento,
-            params! {
-                "producto_id" => producto.producto_id,
-                "cantidad" => producto.cantidad,
-                "stock_anterior" => stock_anterior,
-                "stock_nuevo" => stock_nuevo,
-                "folio_devolucion" => &folio_devolucion,
-                "usuario_id" => usuarioId,
-            },
-        )
-        .map_err(|e| format!("Error al registrar movimiento: {}", e))?;
+            params![
+                producto.producto_id,
+                producto.cantidad,
+                stock_anterior,
+                stock_nuevo,
+                &folio_devolucion,
+                usuarioId,
+            ],
+        ) {
+            return Err(rollback_on_error(&conn, format!("Error al registrar movimiento: {}", e)));
+        }
     }
 
     // Commit
-    tx.commit()
-        .map_err(|e| format!("Error al confirmar transacción: {}", e))?;
+    if let Err(e) = conn.execute("COMMIT", []) {
+        return Err(format!("Error al confirmar transacción: {}", e));
+    }
 
     Ok(DevolucionResponse {
         success: true,

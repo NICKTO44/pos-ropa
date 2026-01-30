@@ -1,25 +1,29 @@
-/* Variables de color empresarial */
+/* ================================
+   RESET Y VARIABLES
+   ================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 :root {
   --primary: #2c3e50;
   --primary-dark: #1a252f;
   --secondary: #34495e;
   --accent: #3498db;
   --accent-hover: #2980b9;
-  --background: #ecf0f1;
+  --background: #f5f6fa;
   --card-bg: #ffffff;
   --text-primary: #2c3e50;
   --text-secondary: #7f8c8d;
   --border: #bdc3c7;
   --success: #27ae60;
   --danger: #e74c3c;
+  --warning: #f39c12;
   --shadow: rgba(0, 0, 0, 0.08);
   --shadow-hover: rgba(0, 0, 0, 0.15);
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
 }
 
 body {
@@ -29,175 +33,51 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--background);
-}
-
-.app-container {
-  min-height: 100vh;
-  background: var(--background);
-}
-
-/* Header empresarial */
-.app-header {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  padding: 0 40px;
-  height: 70px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 20px var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.app-header h1 {
-  color: white;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.5px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.user-info span {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-}
-
-.logout-btn {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 10px 24px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-}
-
-.logout-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px);
-}
-
-/* Main content */
-.app-main {
-  padding: 40px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.dashboard {
-  animation: fadeIn 0.5s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.dashboard h2 {
-  color: var(--text-primary);
-  font-size: 32px;
-  font-weight: 700;
-  margin-bottom: 10px;
-  letter-spacing: -0.5px;
-}
-
-.dashboard p {
-  color: var(--text-secondary);
-  font-size: 16px;
-  margin-bottom: 40px;
-}
-
-.dashboard p strong {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* Cards grid */
-.menu-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  margin-top: 40px;
-}
-
-.card {
-  background: var(--card-bg);
-  border-radius: 16px;
-  padding: 32px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 8px var(--shadow);
-  position: relative;
   overflow: hidden;
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
-}
+/* ================================
+   LAYOUT PRINCIPAL
+   ================================ */
 
-.card:hover::before {
-  transform: scaleX(1);
-}
-
-.card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px var(--shadow-hover);
-  border-color: var(--accent);
-}
-
-.card h3 {
-  font-size: 24px;
-  color: var(--text-primary);
-  margin-bottom: 12px;
-  font-weight: 700;
+.app-layout {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.card p {
-  color: var(--text-secondary);
-  font-size: 14px;
-  margin: 0;
-  line-height: 1.6;
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--background);
 }
 
-/* Acceso denegado */
+/* ================================
+   ACCESO DENEGADO
+   ================================ */
+
 .acceso-denegado {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 80vh;
+  min-height: 100vh;
   padding: 40px;
   text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .acceso-denegado h2 {
@@ -212,14 +92,15 @@ body {
   color: var(--text-secondary);
   margin-bottom: 32px;
   max-width: 500px;
+  line-height: 1.6;
 }
 
 .btn-volver {
   padding: 14px 32px;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
@@ -228,40 +109,96 @@ body {
 }
 
 .btn-volver:hover {
-  background: var(--primary-dark);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px var(--shadow-hover);
 }
 
-/* Responsive */
+/* ================================
+   SCROLLBAR PERSONALIZADO
+   ================================ */
+
+.app-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.app-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.app-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+.app-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ================================
+   RESPONSIVE
+   ================================ */
+
 @media (max-width: 768px) {
-  .app-header {
-    padding: 0 20px;
-    height: 60px;
+  .app-layout {
+    flex-direction: column;
   }
 
-  .app-header h1 {
-    font-size: 18px;
+  .acceso-denegado h2 {
+    font-size: 32px;
   }
 
-  .app-main {
-    padding: 24px;
+  .acceso-denegado p {
+    font-size: 16px;
   }
+}
 
-  .dashboard h2 {
-    font-size: 24px;
-  }
+/* ================================
+   ANIMACIONES GLOBALES
+   ================================ */
 
-  .menu-cards {
-    grid-template-columns: 1fr;
-    gap: 16px;
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-  .card {
-    padding: 24px;
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
   }
+  50% {
+    opacity: 0.5;
+  }
+}
 
-  .user-info span {
-    display: none;
-  }
+/* ================================
+   UTILIDADES
+   ================================ */
+
+.fade-in {
+  animation: fadeIn 0.5s ease;
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+.loading::after {
+  content: '...';
+  animation: pulse 1.5s ease-in-out infinite;
 }

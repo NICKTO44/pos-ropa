@@ -3,4 +3,4 @@
 
 pub mod connection;
 
-pub use connection::{DatabasePool, create_database_url, default_database_url, test_connection};
+pub use connection::{DatabasePool, default_database_path, database_exists, initialize_database, test_connection};

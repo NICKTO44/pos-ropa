@@ -1,5 +1,5 @@
 // main.rs
-// Archivo principal de la aplicación Tauri
+// Archivo principal de la aplicación Tauri - SQLite
 
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -8,31 +8,44 @@ mod database;
 mod models;
 mod commands;
 
-use database::{DatabasePool, default_database_url};
+use database::{DatabasePool, default_database_path, database_exists, initialize_database};
 use commands::*;
 
 fn main() {
-    // Crear pool de conexiones a la base de datos
-    let database_url = default_database_url();
+    // Obtener ruta de la base de datos
+    let db_path = default_database_path();
     
-    let db_pool = match DatabasePool::new(&database_url) {
+    // Verificar si la base de datos existe, si no, crearla
+    if !database_exists(&db_path) {
+        println!("📦 Base de datos no encontrada. Creando nueva base de datos...");
+        match initialize_database(&db_path) {
+            Ok(_) => println!("✅ Base de datos SQLite creada exitosamente en: {}", db_path),
+            Err(e) => {
+                eprintln!("❌ Error fatal al crear base de datos: {}", e);
+                eprintln!("💡 Verifica permisos de escritura en el directorio");
+                panic!("No se puede continuar sin base de datos");
+            }
+        }
+    } else {
+        println!("✅ Base de datos SQLite encontrada: {}", db_path);
+    }
+    
+    // Crear pool de conexiones
+    let db_pool = match DatabasePool::new(&db_path) {
         Ok(pool) => {
-            println!("✅ Conexión a base de datos establecida");
+            println!("✅ Conexión a SQLite establecida correctamente");
             pool
         }
         Err(e) => {
             eprintln!("❌ Error al conectar a la base de datos: {}", e);
-            eprintln!("⚠️  La aplicación continuará pero las funciones de BD no estarán disponibles");
-            eprintln!("💡 Verifica que MySQL esté corriendo y las credenciales sean correctas");
-            
-            // Crear un pool con configuración por defecto (fallará en uso pero permite iniciar la app)
-            DatabasePool::new("mysql://localhost:3306/tienda_db").unwrap()
+            eprintln!("💡 Verifica que el archivo tienda.db no esté corrupto");
+            panic!("No se puede continuar sin base de datos");
         }
     };
 
     tauri::Builder::default()
         .manage(db_pool)
-       .invoke_handler(tauri::generate_handler![
+        .invoke_handler(tauri::generate_handler![
             // Comandos de autenticación
             login,
             test_database_connection,
@@ -43,8 +56,7 @@ fn main() {
             obtener_productos_stock_bajo,
             actualizar_producto,
             obtener_categorias,
-            obtener_categorias, 
-            obtener_nombres_categorias,          // ← AGREGAR
+            obtener_nombres_categorias,
             buscar_productos_filtrado, 
             // Comandos de ventas
             procesar_venta,
@@ -63,6 +75,7 @@ fn main() {
             obtener_roles,
             agregar_usuario,
             actualizar_usuario,
+            // Comandos de devoluciones
             buscar_venta_para_devolucion,
             procesar_devolucion,
         ])

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Login from './Login';
+import Sidebar from './Sidebar';
 import POS from './POS';
 import Inventario from './Inventario';
 import Reportes from './Reportes';
@@ -9,20 +10,27 @@ import './App.css';
 
 function App() {
   const [usuario, setUsuario] = useState(null);
-  const [vistaActual, setVistaActual] = useState('dashboard');
+  const [vistaActual, setVistaActual] = useState('pos');
+  const [sidebarColapsado, setSidebarColapsado] = useState(false);
 
   const handleLoginSuccess = (user) => {
     setUsuario(user);
-    setVistaActual('dashboard');
+    setVistaActual('pos');
   };
 
   const handleLogout = () => {
     setUsuario(null);
-    setVistaActual('dashboard');
+    setVistaActual('pos');
   };
 
-  const abrirVista = (vista) => {
-    setVistaActual(vista);
+  const cambiarModulo = (modulo) => {
+    if (tienePermiso(modulo)) {
+      setVistaActual(modulo);
+    }
+  };
+
+  const toggleSidebar = () => {
+    setSidebarColapsado(!sidebarColapsado);
   };
 
   // Función para verificar permisos
@@ -38,151 +46,70 @@ function App() {
     return permisos[usuario.rol_id]?.[modulo] || false;
   };
 
+  // Si no hay usuario, mostrar login
   if (!usuario) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Renderizar vista según la selección
-  if (vistaActual === 'pos') {
-    if (!tienePermiso('pos')) {
+  // Función para renderizar el contenido según la vista
+  const renderContenido = () => {
+    // Verificar permisos antes de renderizar
+    if (!tienePermiso(vistaActual)) {
       return (
-        <div className="app-container">
-          <div className="acceso-denegado">
-            <h2>🔒 Acceso Denegado</h2>
-            <p>No tienes permisos para acceder al Punto de Venta</p>
-            <button onClick={() => setVistaActual('dashboard')} className="btn-volver">
-              ← Volver al Inicio
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <POS usuario={usuario} onVolver={() => setVistaActual('dashboard')} />;
-  }
-
-  if (vistaActual === 'inventario') {
-    if (!tienePermiso('inventario')) {
-      return (
-        <div className="app-container">
-          <div className="acceso-denegado">
-            <h2>🔒 Acceso Denegado</h2>
-            <p>No tienes permisos para acceder al Inventario</p>
-            <button onClick={() => setVistaActual('dashboard')} className="btn-volver">
-              ← Volver al Inicio
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <Inventario usuario={usuario} onVolver={() => setVistaActual('dashboard')} />;
-  }
-
-  if (vistaActual === 'reportes') {
-    if (!tienePermiso('reportes')) {
-      return (
-        <div className="app-container">
-          <div className="acceso-denegado">
-            <h2>🔒 Acceso Denegado</h2>
-            <p>No tienes permisos para acceder a los Reportes</p>
-            <button onClick={() => setVistaActual('dashboard')} className="btn-volver">
-              ← Volver al Inicio
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <Reportes usuario={usuario} onVolver={() => setVistaActual('dashboard')} />;
-  }
-
-  if (vistaActual === 'configuracion') {
-    if (!tienePermiso('configuracion')) {
-      return (
-        <div className="app-container">
-          <div className="acceso-denegado">
-            <h2>🔒 Acceso Denegado</h2>
-            <p>Solo los administradores pueden acceder a esta sección</p>
-            <button onClick={() => setVistaActual('dashboard')} className="btn-volver">
-              ← Volver al Inicio
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <Configuracion usuario={usuario} onVolver={() => setVistaActual('dashboard')} />;
-  }
-
-  if (vistaActual === 'devoluciones') {
-    if (!tienePermiso('devoluciones')) {
-      return (
-        <div className="app-container">
-          <div className="acceso-denegado">
-            <h2>🔒 Acceso Denegado</h2>
-            <p>Solo los administradores pueden procesar devoluciones</p>
-            <button onClick={() => setVistaActual('dashboard')} className="btn-volver">
-              ← Volver al Inicio
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <Devoluciones usuario={usuario} onVolver={() => setVistaActual('dashboard')} />;
-  }
-
-  // Dashboard principal con control de permisos
-  return (
-    <div className="app-container">
-      <header className="app-header">
-        <h1>🏪 Sistema de Tienda</h1>
-        <div className="user-info">
-          <span>👤 {usuario.nombre_completo}</span>
-          <button onClick={handleLogout} className="logout-btn">
-            Cerrar Sesión
+        <div className="acceso-denegado">
+          <h2>🔒 Acceso Denegado</h2>
+          <p>No tienes permisos para acceder a este módulo</p>
+          <button 
+            onClick={() => {
+              // Redirigir al primer módulo disponible
+              if (tienePermiso('pos')) setVistaActual('pos');
+              else if (tienePermiso('inventario')) setVistaActual('inventario');
+              else if (tienePermiso('reportes')) setVistaActual('reportes');
+            }} 
+            className="btn-volver"
+          >
+            ← Ir al inicio
           </button>
         </div>
-      </header>
+      );
+    }
 
-      <main className="app-main">
-        <div className="dashboard">
-          <h2>Bienvenido al Sistema</h2>
-          <p>Has iniciado sesión correctamente como: <strong>{usuario.username}</strong></p>
-          
-          <div className="menu-cards">
-            {tienePermiso('pos') && (
-              <div className="card" onClick={() => abrirVista('pos')}>
-                <h3>💰 Ventas</h3>
-                <p>Punto de venta</p>
-              </div>
-            )}
-            
-            {tienePermiso('inventario') && (
-              <div className="card" onClick={() => abrirVista('inventario')}>
-                <h3>📦 Inventario</h3>
-                <p>Gestión de productos</p>
-              </div>
-            )}
-            
-            {tienePermiso('reportes') && (
-              <div className="card" onClick={() => abrirVista('reportes')}>
-                <h3>📊 Reportes</h3>
-                <p>Análisis de ventas</p>
-              </div>
-            )}
-            
-            {tienePermiso('devoluciones') && (
-              <div className="card" onClick={() => abrirVista('devoluciones')}>
-                <h3>🔄 Devoluciones</h3>
-                <p>Procesar devoluciones</p>
-              </div>
-            )}
-            
-            {tienePermiso('configuracion') && (
-              <div className="card" onClick={() => abrirVista('configuracion')}>
-                <h3>⚙️ Configuración</h3>
-                <p>Ajustes del sistema</p>
-              </div>
-            )}
-          </div>
-        </div>
+    // Renderizar el módulo correspondiente
+    switch (vistaActual) {
+      case 'pos':
+        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+      
+      case 'inventario':
+        return <Inventario usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+      
+      case 'reportes':
+        return <Reportes usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+      
+      case 'devoluciones':
+        return <Devoluciones usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+      
+      case 'configuracion':
+        return <Configuracion usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+      
+      default:
+        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} />;
+    }
+  };
+
+  // Layout con Sidebar + Contenido
+  return (
+    <div className="app-layout">
+      <Sidebar
+        moduloActual={vistaActual}
+        cambiarModulo={cambiarModulo}
+        usuario={usuario}
+        cerrarSesion={handleLogout}
+        colapsado={sidebarColapsado}
+        toggleColapsar={toggleSidebar}
+      />
+      
+      <main className="app-content">
+        {renderContenido()}
       </main>
     </div>
   );

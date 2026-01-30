@@ -1,4 +1,4 @@
-// commands/mod.rs
+
 // Módulo de comandos Tauri
 
 pub mod auth;
@@ -16,8 +16,8 @@ pub use productos::{
     obtener_productos_stock_bajo,
     actualizar_producto,
     obtener_categorias,
-    obtener_nombres_categorias,          // ← AGREGAR
-    buscar_productos_filtrado,    // ← AGREGAR
+    obtener_nombres_categorias,          
+    buscar_productos_filtrado,    
 };
 pub use ventas::{procesar_venta};
 pub use reportes::{
@@ -25,7 +25,7 @@ pub use reportes::{
     obtener_productos_mas_vendidos,
     obtener_estadisticas_ventas,
     obtener_ventas_hoy,
-    obtener_estadisticas_con_devoluciones,  // ← AGREGAR
+    obtener_estadisticas_con_devoluciones,  
 
 };
 pub use configuracion::{

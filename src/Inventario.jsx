@@ -169,8 +169,8 @@ function Inventario({ usuario, onVolver }) {
         <button onClick={onVolver} className="btn-volver">
           ← Volver
         </button>
-        <h2>📦 Gestión de Inventario</h2>
-        <div className="inventario-usuario">👤 {usuario.nombre_completo}</div>
+        <h2>Gestión de Inventario</h2>
+        <div className="inventario-usuario"> {usuario.nombre_completo}</div>
       </div>
 
       <div className="inventario-content">
