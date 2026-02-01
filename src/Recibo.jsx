@@ -1,9 +1,32 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import jsPDF from 'jspdf';
 import './Recibo.css';
 
 function Recibo({ venta, onCerrar }) {
   const reciboRef = useRef(null);
+  const [configTienda, setConfigTienda] = useState({
+    nombre_tienda: 'TIENDA DE ROPA',
+    rfc: 'XAXX010101000',
+    telefono: '(555) 123-4567',
+    direccion: '',
+    mensaje_recibo: '¡GRACIAS POR SU COMPRA!'
+  });
+
+  // Cargar configuración al montar el componente
+  useEffect(() => {
+    cargarConfiguracion();
+  }, []);
+
+  const cargarConfiguracion = async () => {
+    try {
+      const config = await invoke('obtener_configuracion_tienda');
+      setConfigTienda(config);
+    } catch (error) {
+      console.error('Error al cargar configuración:', error);
+      // Si falla, usa los valores por defecto que ya están en el estado
+    }
+  };
 
   const handleDescargarPDF = () => {
     const doc = new jsPDF({
@@ -15,20 +38,38 @@ function Recibo({ venta, onCerrar }) {
     let y = 10;
     const lineHeight = 5;
 
-    // Header
+    // Header con datos dinámicos
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
-    doc.text('TIENDA DE ROPA', 40, y, { align: 'center' });
+    doc.text(configTienda.nombre_tienda.toUpperCase(), 40, y, { align: 'center' });
     y += lineHeight + 2;
     
     doc.setFontSize(9);
     doc.setFont(undefined, 'normal');
     doc.text('Sistema de Ventas', 40, y, { align: 'center' });
     y += lineHeight;
-    doc.text('RFC: XAXX010101000', 40, y, { align: 'center' });
-    y += lineHeight;
-    doc.text('Tel: (555) 123-4567', 40, y, { align: 'center' });
-    y += lineHeight + 3;
+    
+    if (configTienda.rfc) {
+      doc.text(`RFC: ${configTienda.rfc}`, 40, y, { align: 'center' });
+      y += lineHeight;
+    }
+    
+    if (configTienda.telefono) {
+      doc.text(`Tel: ${configTienda.telefono}`, 40, y, { align: 'center' });
+      y += lineHeight;
+    }
+    
+    if (configTienda.direccion) {
+      doc.setFontSize(8);
+      const direccionLineas = doc.splitTextToSize(configTienda.direccion, 70);
+      direccionLineas.forEach(linea => {
+        doc.text(linea, 40, y, { align: 'center' });
+        y += lineHeight - 1;
+      });
+      doc.setFontSize(9);
+    }
+    
+    y += 3;
 
     // Separador
     doc.text('================================', 5, y);
@@ -70,7 +111,9 @@ function Recibo({ venta, onCerrar }) {
       doc.text(linea, 5, y);
       y += lineHeight;
       
-      const precio = `       S/ S/ {producto.precio.toFixed(2)}   S/ {(producto.cantidad * producto.precio).toFixed(2)}`;
+      const precioUnitario = producto.precio.toFixed(2);
+      const totalLinea = (producto.cantidad * producto.precio).toFixed(2);
+      const precio = `       S/ ${precioUnitario}   S/ ${totalLinea}`;
       doc.text(precio, 5, y);
       y += lineHeight + 1;
     });
@@ -81,19 +124,19 @@ function Recibo({ venta, onCerrar }) {
 
     // Totales
     doc.text(`SUBTOTAL:`, 5, y);
-    doc.text(`S/ {venta.subtotal.toFixed(2)}`, 70, y, { align: 'right' });
+    doc.text(`S/ ${venta.subtotal.toFixed(2)}`, 70, y, { align: 'right' });
     y += lineHeight;
 
     if (venta.descuento > 0) {
       doc.text(`DESCUENTO:`, 5, y);
-      doc.text(`-S/ {venta.descuento.toFixed(2)}`, 70, y, { align: 'right' });
+      doc.text(`-S/ ${venta.descuento.toFixed(2)}`, 70, y, { align: 'right' });
       y += lineHeight;
     }
 
     doc.setFont(undefined, 'bold');
     doc.setFontSize(11);
     doc.text(`TOTAL:`, 5, y);
-    doc.text(`S/ {venta.total.toFixed(2)}`, 70, y, { align: 'right' });
+    doc.text(`S/ ${venta.total.toFixed(2)}`, 70, y, { align: 'right' });
     y += lineHeight + 3;
 
     doc.setFontSize(9);
@@ -106,9 +149,9 @@ function Recibo({ venta, onCerrar }) {
     y += lineHeight;
 
     if (venta.metodoPago === 'EFECTIVO') {
-      doc.text(`EFECTIVO: S/ {venta.montoRecibido.toFixed(2)}`, 5, y);
+      doc.text(`EFECTIVO: S/ ${venta.montoRecibido.toFixed(2)}`, 5, y);
       y += lineHeight;
-      doc.text(`CAMBIO: S/ {venta.cambio.toFixed(2)}`, 5, y);
+      doc.text(`CAMBIO: S/ ${venta.cambio.toFixed(2)}`, 5, y);
       y += lineHeight;
     }
 
@@ -116,9 +159,10 @@ function Recibo({ venta, onCerrar }) {
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Footer
+    // Footer con mensaje personalizable
     doc.setFont(undefined, 'bold');
-    doc.text('GRACIAS POR SU COMPRA!', 40, y, { align: 'center' });
+    const mensajePrincipal = configTienda.mensaje_recibo || '¡GRACIAS POR SU COMPRA!';
+    doc.text(mensajePrincipal, 40, y, { align: 'center' });
     y += lineHeight;
     doc.setFont(undefined, 'normal');
     doc.text('Vuelva Pronto', 40, y, { align: 'center' });
@@ -128,12 +172,26 @@ function Recibo({ venta, onCerrar }) {
     y += lineHeight;
     doc.text('Para devoluciones conserve su ticket', 40, y, { align: 'center' });
 
-    // Guardar y abrir
+    // Guardar PDF
     doc.save(`Ticket-${venta.folio}.pdf`);
-    
-    const pdfBlob = doc.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, '_blank');
+  };
+
+  const handleImprimir = () => {
+    // Ocultar los botones antes de imprimir
+    const botonesAcciones = document.querySelector('.recibo-acciones');
+    if (botonesAcciones) {
+      botonesAcciones.style.display = 'none';
+    }
+
+    // Imprimir
+    window.print();
+
+    // Restaurar botones después de imprimir/cancelar
+    setTimeout(() => {
+      if (botonesAcciones) {
+        botonesAcciones.style.display = 'flex';
+      }
+    }, 100);
   };
 
   const formatearFecha = () => {
@@ -143,7 +201,8 @@ function Recibo({ venta, onCerrar }) {
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -151,8 +210,11 @@ function Recibo({ venta, onCerrar }) {
     <div className="recibo-overlay">
       <div className="recibo-container">
         <div className="recibo-acciones no-print">
-          <button onClick={handleDescargarPDF} className="btn-imprimir">
-            🖨️ Imprimir Ticket
+          <button onClick={handleImprimir} className="btn-imprimir">
+            🖨️ Imprimir
+          </button>
+          <button onClick={handleDescargarPDF} className="btn-descargar">
+            📥 Descargar PDF
           </button>
           <button onClick={onCerrar} className="btn-cerrar">
             ✕ Cerrar
@@ -161,10 +223,11 @@ function Recibo({ venta, onCerrar }) {
 
         <div className="recibo-ticket" ref={reciboRef}>
           <div className="recibo-header">
-            <h1>🏪 TIENDA DE ROPA</h1>
+            <h1>🏪 {configTienda.nombre_tienda}</h1>
             <p>Sistema de Ventas</p>
-            <p>RFC: XAXX010101000</p>
-            <p>Tel: (555) 123-4567</p>
+            {configTienda.rfc && <p>RUC: {configTienda.rfc}</p>}
+            {configTienda.telefono && <p>Tel: {configTienda.telefono}</p>}
+            {configTienda.direccion && <p className="direccion">{configTienda.direccion}</p>}
           </div>
 
           <div className="recibo-separador">================================</div>
@@ -202,7 +265,7 @@ function Recibo({ venta, onCerrar }) {
                     <td>{producto.cantidad}</td>
                     <td className="desc">{producto.nombre}</td>
                     <td>S/ {producto.precio.toFixed(2)}</td>
-                    <td>S/ {(producto.cantidad * producto.precio).toFixed(2)}</td>
+                    <td>S/ {(producto.cantidad * producto.precio * (1 - (producto.descuento || 0) / 100)).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -252,7 +315,7 @@ function Recibo({ venta, onCerrar }) {
           <div className="recibo-separador">================================</div>
 
           <div className="recibo-footer">
-            <p>¡GRACIAS POR SU COMPRA!</p>
+            <p>{configTienda.mensaje_recibo || '¡GRACIAS POR SU COMPRA!'}</p>
             <p>Vuelva Pronto</p>
             <p className="small">Este ticket no es válido como factura</p>
             <p className="small">Para devoluciones conserve su ticket</p>

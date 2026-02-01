@@ -290,7 +290,7 @@ function Configuracion({ usuario, onVolver }) {
                 </div>
 
                 <div className="form-group">
-                  <label>RFC</label>
+                  <label>RUC</label>
                   <input
                     type="text"
                     value={configTienda.rfc}

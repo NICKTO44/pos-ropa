@@ -1,3 +1,5 @@
+/* Recibo.css - Estilos para ticket de venta */
+
 .recibo-overlay {
   position: fixed;
   top: 0;
@@ -8,36 +10,47 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 2000;
+  padding: 20px;
 }
 
 .recibo-container {
   background: white;
   border-radius: 12px;
-  padding: 20px;
-  max-width: 400px;
+  max-width: 450px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .recibo-acciones {
+  padding: 15px 20px;
   display: flex;
   gap: 10px;
-  margin-bottom: 20px;
+  justify-content: center;
+  border-bottom: 2px solid #f0f0f0;
+  background: #f9f9f9;
+  border-radius: 12px 12px 0 0;
+}
+
+.btn-imprimir,
+.btn-descargar,
+.btn-cerrar {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-imprimir {
-  flex: 1;
-  padding: 12px;
   background: #10b981;
   color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.3s;
 }
 
 .btn-imprimir:hover {
@@ -45,103 +58,114 @@
   transform: translateY(-2px);
 }
 
+.btn-descargar {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-descargar:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+}
+
 .btn-cerrar {
-  padding: 12px 20px;
   background: #ef4444;
   color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.3s;
 }
 
 .btn-cerrar:hover {
   background: #dc2626;
+  transform: translateY(-2px);
 }
 
+/* Ticket */
 .recibo-ticket {
-  background: white;
-  padding: 20px;
+  padding: 30px 25px;
   font-family: 'Courier New', monospace;
-  font-size: 12px;
-  max-width: 300px;
+  background: white;
+  color: #000;
+  max-width: 400px;
   margin: 0 auto;
-  border: 2px dashed #ddd;
 }
 
 .recibo-header {
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .recibo-header h1 {
   font-size: 18px;
-  margin: 0 0 5px 0;
+  margin: 0 0 8px 0;
   font-weight: bold;
 }
 
 .recibo-header p {
-  margin: 2px 0;
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.recibo-header .direccion {
   font-size: 11px;
+  color: #444;
+  margin-top: 6px;
 }
 
 .recibo-separador {
   text-align: center;
   margin: 10px 0;
+  font-size: 12px;
   color: #666;
-  font-size: 10px;
 }
 
 .recibo-info {
-  margin: 10px 0;
+  margin: 15px 0;
+  font-size: 12px;
 }
 
-.info-row,
-.pago-row {
+.info-row {
   display: flex;
   justify-content: space-between;
-  margin: 5px 0;
-  font-size: 11px;
+  margin-bottom: 5px;
 }
 
+/* Productos */
 .recibo-productos {
-  margin: 10px 0;
+  margin: 15px 0;
 }
 
 .recibo-productos table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .recibo-productos th {
   text-align: left;
-  padding: 5px 2px;
+  padding: 5px 3px;
+  font-weight: bold;
   border-bottom: 1px solid #333;
-  font-size: 10px;
 }
 
 .recibo-productos td {
-  padding: 5px 2px;
+  padding: 5px 3px;
   vertical-align: top;
 }
 
-.recibo-productos td.desc {
-  max-width: 120px;
-  word-wrap: break-word;
+.recibo-productos .desc {
+  word-break: break-word;
+  max-width: 150px;
 }
 
+/* Totales */
 .recibo-totales {
-  margin: 10px 0;
+  margin: 15px 0;
+  font-size: 12px;
 }
 
 .total-row {
   display: flex;
   justify-content: space-between;
-  margin: 5px 0;
-  font-size: 12px;
+  margin-bottom: 5px;
 }
 
 .total-final {
@@ -151,55 +175,105 @@
   margin-top: 8px;
 }
 
+/* Pago */
 .recibo-pago {
-  margin: 10px 0;
+  margin: 15px 0;
+  font-size: 12px;
 }
 
+.pago-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+/* Footer */
 .recibo-footer {
   text-align: center;
-  margin-top: 10px;
+  margin-top: 15px;
+  font-size: 12px;
 }
 
 .recibo-footer p {
   margin: 5px 0;
-  font-size: 11px;
 }
 
 .recibo-footer .small {
-  font-size: 9px;
+  font-size: 10px;
   color: #666;
 }
 
 /* Estilos de impresión */
 @media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .recibo-overlay,
+  .recibo-overlay * {
+    visibility: visible;
+  }
+  
   .recibo-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: white;
-    position: static;
-  }
-
-  .recibo-container {
-    box-shadow: none;
-    max-width: 80mm;
     padding: 0;
+    margin: 0;
   }
-
+  
+  .recibo-container {
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  
+  .recibo-acciones,
   .no-print {
     display: none !important;
   }
-
+  
   .recibo-ticket {
-    border: none;
-    padding: 10px;
-    max-width: 100%;
-  }
-
-  @page {
-    size: 80mm auto;
+    padding: 10mm;
+    max-width: 80mm;
     margin: 0;
   }
-
-  body {
-    margin: 0;
-    padding: 0;
+  
+  .recibo-header h1 {
+    font-size: 16px;
   }
+  
+  .recibo-productos table {
+    page-break-inside: avoid;
+  }
+  
+  /* Evitar saltos de página no deseados */
+  .recibo-info,
+  .recibo-totales,
+  .recibo-pago {
+    page-break-inside: avoid;
+  }
+}
+
+/* Scrollbar personalizado */
+.recibo-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.recibo-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.recibo-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.recibo-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
