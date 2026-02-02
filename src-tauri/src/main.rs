@@ -90,6 +90,9 @@ fn main() {
             commands::licencias::activar_licencia,
             commands::licencias::calcular_dias_restantes,
             commands::licencias::validar_codigo_activacion,
+            
+            commands::licencias::verificar_primera_vez,        // ← NUEVO
+            commands::licencias::marcar_primera_vez_vista,
             commands::licencias::obtener_info_debug_licencia,
         ])
         .run(tauri::generate_context!())

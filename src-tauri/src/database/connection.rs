@@ -154,7 +154,7 @@ pub fn run_migrations(db_path: &str) -> Result<()> {
     if !has_licencias {
         println!("🔧 Ejecutando migración: Agregar sistema de licencias...");
         
-        // Crear tablas de licencias
+        // Crear tablas de licencias (CON primera_vez_mostrado)
         conn.execute_batch(r#"
             CREATE TABLE IF NOT EXISTS licencias (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,7 +164,8 @@ pub fn run_migrations(db_path: &str) -> Result<()> {
                 fecha_expiracion TIMESTAMP,
                 codigo_activacion TEXT,
                 fecha_ultima_activacion TIMESTAMP,
-                intentos_activacion INTEGER DEFAULT 0
+                intentos_activacion INTEGER DEFAULT 0,
+                primera_vez_mostrado INTEGER DEFAULT 0
             );
 
             INSERT INTO licencias (tipo_licencia, estado, fecha_expiracion)
@@ -189,6 +190,24 @@ pub fn run_migrations(db_path: &str) -> Result<()> {
         println!("✅ Migración completada: Sistema de licencias agregado");
     } else {
         println!("✅ Base de datos actualizada");
+        
+        // 🆕 MIGRACIÓN: Agregar columna primera_vez_mostrado si no existe
+        let has_columna: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('licencias') WHERE name='primera_vez_mostrado'",
+                [],
+                |row| Ok(row.get::<_, i32>(0)? > 0),
+            )
+            .unwrap_or(false);
+        
+        if !has_columna {
+            println!("🔧 Agregando columna primera_vez_mostrado...");
+            conn.execute(
+                "ALTER TABLE licencias ADD COLUMN primera_vez_mostrado INTEGER DEFAULT 0",
+                [],
+            )?;
+            println!("✅ Columna primera_vez_mostrado agregada");
+        }
     }
     
     Ok(())

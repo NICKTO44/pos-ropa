@@ -424,7 +424,79 @@ fn extraer_tipo_licencia(codigo: &str) -> Result<String, String> {
         _ => Err("Tipo de licencia no reconocido".to_string()),
     }
 }
+// =====================================================
+// 🆕 COMANDO 1: Verificar si es primera vez
+// =====================================================
+#[tauri::command]
+pub fn verificar_primera_vez(db: tauri::State<DatabasePool>) -> Result<bool, String> {
+    let conn = db.get_conn();
 
+    // Verificar si la columna existe (por si aún no se ejecutó la migración)
+    let columna_existe: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('licencias') WHERE name='primera_vez_mostrado'",
+            [],
+            |row| Ok(row.get::<_, i32>(0)? > 0),
+        )
+        .unwrap_or(false);
+
+    if !columna_existe {
+        // Si la columna no existe, asumir que es primera vez
+        println!("⚠️ Columna 'primera_vez_mostrado' no existe aún");
+        return Ok(true);
+    }
+
+    // Verificar si ya se mostró el mensaje de bienvenida
+    let ya_mostrado: i32 = conn
+        .query_row(
+            "SELECT COALESCE(primera_vez_mostrado, 0) FROM licencias WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Retornar true si NO se ha mostrado (primera vez)
+    Ok(ya_mostrado == 0)
+}
+
+// =====================================================
+// 🆕 COMANDO 2: Marcar que ya se mostró el mensaje de primera vez
+// =====================================================
+#[tauri::command]
+pub fn marcar_primera_vez_vista(db: tauri::State<DatabasePool>) -> Result<bool, String> {
+    let conn = db.get_conn();
+
+    // Verificar si la columna existe
+    let columna_existe: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('licencias') WHERE name='primera_vez_mostrado'",
+            [],
+            |row| Ok(row.get::<_, i32>(0)? > 0),
+        )
+        .unwrap_or(false);
+
+    if !columna_existe {
+        println!("⚠️ Columna 'primera_vez_mostrado' no existe aún");
+        return Ok(false);
+    }
+
+    // Marcar como visto
+    let resultado = conn.execute(
+        "UPDATE licencias SET primera_vez_mostrado = 1 WHERE id = 1",
+        [],
+    );
+
+    match resultado {
+        Ok(_) => {
+            println!("✅ Primera vez marcada como vista");
+            Ok(true)
+        }
+        Err(e) => {
+            println!("❌ Error al marcar primera vez: {}", e);
+            Ok(false)
+        }
+    }
+}
 // =====================================================
 // COMANDO: Obtener información para debug (SOLO DESARROLLO)
 // =====================================================

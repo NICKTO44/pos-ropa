@@ -9,6 +9,8 @@ import Configuracion from './Configuracion';
 import Devoluciones from './Devoluciones';
 import ActivarLicencia from './ActivarLicencia';
 import BannerLicencia from './BannerLicencia';
+import SplashScreen from './SplashScreen';
+import ModalBienvenida from './ModalBienvenida';
 import './App.css';
 
 function App() {
@@ -16,65 +18,196 @@ function App() {
   const [vistaActual, setVistaActual] = useState('pos');
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   
-  // 🆕 Estados de licencia
+  // Estados de licencia
   const [estadoLicencia, setEstadoLicencia] = useState(null);
   const [modoSoloLectura, setModoSoloLectura] = useState(false);
   const [mostrarActivacion, setMostrarActivacion] = useState(false);
   const [cargandoLicencia, setCargandoLicencia] = useState(true);
 
-  // 🆕 Verificar licencia al iniciar
+  // Estados para splash y modal
+  const [mostrarSplash, setMostrarSplash] = useState(false);
+  const [tipoSplash, setTipoSplash] = useState('');
+  const [mostrarModalBienvenida, setMostrarModalBienvenida] = useState(false);
+  const [esPrimeraVez, setEsPrimeraVez] = useState(false);
+
+  // 🔧 MOVER renderContenido AQUÍ (antes de los useEffect)
+  const renderContenido = () => {
+    if (!tienePermiso(vistaActual)) {
+      return (
+        <div className="acceso-denegado">
+          <h2>🔒 Acceso Denegado</h2>
+          <p>No tienes permisos para acceder a este módulo</p>
+          <button 
+            onClick={() => {
+              if (tienePermiso('pos')) setVistaActual('pos');
+              else if (tienePermiso('inventario')) setVistaActual('inventario');
+              else if (tienePermiso('reportes')) setVistaActual('reportes');
+            }} 
+            className="btn-volver"
+          >
+            ← Ir al inicio
+          </button>
+        </div>
+      );
+    }
+
+    switch (vistaActual) {
+      case 'pos':
+        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'inventario':
+        return <Inventario usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'reportes':
+        return <Reportes usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'devoluciones':
+        return <Devoluciones usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'configuracion':
+        return <Configuracion usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      default:
+        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+    }
+  };
+
+  const tienePermiso = (modulo) => {
+    if (!usuario) return false;
+    
+    const permisos = {
+      1: { pos: true, inventario: true, reportes: true, configuracion: true, devoluciones: true },
+      2: { pos: true, inventario: false, reportes: true, configuracion: false, devoluciones: false },
+      3: { pos: false, inventario: true, reportes: false, configuracion: false, devoluciones: false },
+    };
+    
+    return permisos[usuario.rol_id]?.[modulo] || false;
+  };
+
+  // Verificar licencia y primera vez al iniciar
   useEffect(() => {
-    verificarLicencia();
+    inicializarApp();
   }, []);
 
-  // 🆕 Verificar licencia periódicamente (cada 5 minutos)
+  // Verificar licencia periódicamente (cada 5 minutos)
   useEffect(() => {
     const interval = setInterval(() => {
       verificarLicencia();
-    }, 5 * 60 * 1000); // 5 minutos
+    }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // 🆕 Función para verificar estado de licencia
-  const verificarLicencia = async () => {
+  // Mostrar modal bienvenida después del primer login
+  useEffect(() => {
+    console.log('🔍 useEffect modal ejecutado');
+    console.log('  usuario:', usuario);
+    console.log('  esPrimeraVez:', esPrimeraVez);
+    console.log('  mostrarModalBienvenida:', mostrarModalBienvenida);
+    
+    if (usuario && esPrimeraVez && !mostrarModalBienvenida) {
+      console.log('✅ Condiciones cumplidas, mostrando modal...');
+      setTimeout(() => {
+        console.log('🎉 Seteando mostrarModalBienvenida = true');
+        setMostrarModalBienvenida(true);
+      }, 500);
+    }
+  }, [usuario, esPrimeraVez]);
+
+  const inicializarApp = async () => {
     try {
       const estado = await invoke('obtener_estado_licencia');
       setEstadoLicencia(estado);
 
-      // Actualizar estado en el backend
+      const primeraVez = await invoke('verificar_primera_vez');
+      console.log('🔍 PRIMERA VEZ:', primeraVez);
+      setEsPrimeraVez(primeraVez);
+
+      const diasRestantes = estado.dias_restantes || 0;
+      
+      if (primeraVez) {
+        setTipoSplash('bienvenida');
+        setMostrarSplash(true);
+      } else if (diasRestantes === 7) {
+        setTipoSplash('recordatorio');
+        setMostrarSplash(true);
+      } else if (diasRestantes === 3 || diasRestantes === 2) {
+        setTipoSplash('urgente');
+        setMostrarSplash(true);
+      } else if (diasRestantes === 1) {
+        setTipoSplash('ultimo');
+        setMostrarSplash(true);
+      } else if (estado.estado === 'EXPIRADO' && diasRestantes === 0) {
+        setTipoSplash('expirado');
+        setMostrarSplash(true);
+      }
+
       await invoke('verificar_licencia');
 
-      // 🔧 ARREGLADO: Solo mostrar activación si NO está en modo lectura
-      if (estado.estado === 'EXPIRADO' && !usuario && !modoSoloLectura) {
+      if (estado.estado === 'EXPIRADO' && !modoSoloLectura) {
         setMostrarActivacion(true);
       }
 
-      // Determinar modo solo lectura
       setModoSoloLectura(estado.modo_solo_lectura);
 
     } catch (error) {
-      console.error('Error al verificar licencia:', error);
+      console.error('Error al inicializar app:', error);
     } finally {
       setCargandoLicencia(false);
     }
   };
 
-  // 🆕 Manejar activación exitosa
-  const handleActivacionExitosa = async (esModoLectura) => {
-    setModoSoloLectura(esModoLectura);
-    setMostrarActivacion(false);
-    
-    // 🔧 ARREGLADO: NO recargar licencia, ya la tenemos
-    // El estado de licencia no cambió, solo cambiamos de vista
+  const verificarLicencia = async () => {
+    try {
+      const estado = await invoke('obtener_estado_licencia');
+      setEstadoLicencia(estado);
+      await invoke('verificar_licencia');
+
+      if (estado.estado === 'EXPIRADO' && !usuario && !modoSoloLectura) {
+        setMostrarActivacion(true);
+      }
+
+      setModoSoloLectura(estado.modo_solo_lectura);
+    } catch (error) {
+      console.error('Error al verificar licencia:', error);
+    }
   };
 
-  // 🆕 Abrir modal de activación desde banner
+  const handleCerrarSplash = () => {
+    setMostrarSplash(false);
+  };
+
+  const handleComprarDesdeSplash = () => {
+    setMostrarSplash(false);
+    setMostrarActivacion(true);
+  };
+
+  const handleCerrarModalBienvenida = async (noMostrarMas) => {
+    setMostrarModalBienvenida(false);
+    
+    if (noMostrarMas) {
+      try {
+        await invoke('marcar_primera_vez_vista');
+        setEsPrimeraVez(false);
+      } catch (error) {
+        console.error('Error al marcar primera vez:', error);
+      }
+    }
+  };
+
+  const handleVerPlanesDesdeModal = () => {
+  setMostrarModalBienvenida(false);
+  setMostrarActivacion(true);
+};
+
+  const handleActivacionExitosa = async (esModoLectura) => {
+    setModoSoloLectura(esModoLectura);
+      setMostrarActivacion(false);  // ← Ya cierra el modal
+    await verificarLicencia();
+  };
+
   const handleAbrirActivacion = () => {
     setMostrarActivacion(true);
   };
 
   const handleLoginSuccess = (user) => {
+    console.log('🔐 Login exitoso:', user);
+    console.log('🔍 esPrimeraVez actual:', esPrimeraVez);
     setUsuario(user);
     setVistaActual('pos');
   };
@@ -94,20 +227,6 @@ function App() {
     setSidebarColapsado(!sidebarColapsado);
   };
 
-  // Función para verificar permisos
-  const tienePermiso = (modulo) => {
-    if (!usuario) return false;
-    
-    const permisos = {
-      1: { pos: true, inventario: true, reportes: true, configuracion: true, devoluciones: true },      // Administrador
-      2: { pos: true, inventario: false, reportes: true, configuracion: false, devoluciones: false },    // Cajero
-      3: { pos: false, inventario: true, reportes: false, configuracion: false, devoluciones: false },   // Almacenista
-    };
-    
-    return permisos[usuario.rol_id]?.[modulo] || false;
-  };
-
-  // 🆕 Si está cargando licencia, mostrar splash
   if (cargandoLicencia) {
     return (
       <div className="app-loading">
@@ -119,8 +238,20 @@ function App() {
     );
   }
 
-  // 🆕 Si está expirado y no hay usuario, mostrar activación
-  if (estadoLicencia?.estado === 'EXPIRADO' && !usuario && mostrarActivacion) {
+  if (mostrarSplash && !usuario) {
+    return (
+      <SplashScreen 
+        diasRestantes={estadoLicencia?.dias_restantes || 0}
+        tipo={tipoSplash}
+        onContinuar={handleCerrarSplash}
+        onComprar={handleComprarDesdeSplash}
+        autoCerrar={false}
+        duracion={3000}
+      />
+    );
+  }
+
+  if (mostrarActivacion && !usuario) {
     return (
       <ActivarLicencia 
         estadoLicencia={estadoLicencia}
@@ -129,12 +260,45 @@ function App() {
     );
   }
 
-  // Si no hay usuario, mostrar login
   if (!usuario) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // 🆕 Si usuario logueado en modo lectura, puede ver modal de activación
+  if (mostrarModalBienvenida) {
+    return (
+      <>
+        <div className="app-layout">
+          <BannerLicencia 
+            estadoLicencia={estadoLicencia}
+            onActivarClick={handleAbrirActivacion}
+          />
+          <Sidebar
+            moduloActual={vistaActual}
+            cambiarModulo={cambiarModulo}
+            usuario={usuario}
+            cerrarSesion={handleLogout}
+            colapsado={sidebarColapsado}
+            toggleColapsar={toggleSidebar}
+          />
+          <main className="app-content">
+            <div className={estadoLicencia && (
+              estadoLicencia.estado === 'EXPIRADO' || 
+              estadoLicencia.estado === 'GRACIA' || 
+              estadoLicencia.dias_restantes <= 3
+            ) ? 'content-with-banner' : ''}>
+              {renderContenido()}
+            </div>
+          </main>
+        </div>
+        <ModalBienvenida 
+          diasRestantes={estadoLicencia?.dias_restantes || 15}
+          onCerrar={handleCerrarModalBienvenida}
+          onVerPlanes={handleVerPlanesDesdeModal}
+        />
+      </>
+    );
+  }
+
   if (mostrarActivacion && usuario) {
     return (
       <ActivarLicencia 
@@ -144,60 +308,12 @@ function App() {
     );
   }
 
-  // Función para renderizar el contenido según la vista
-  const renderContenido = () => {
-    // Verificar permisos antes de renderizar
-    if (!tienePermiso(vistaActual)) {
-      return (
-        <div className="acceso-denegado">
-          <h2>🔒 Acceso Denegado</h2>
-          <p>No tienes permisos para acceder a este módulo</p>
-          <button 
-            onClick={() => {
-              // Redirigir al primer módulo disponible
-              if (tienePermiso('pos')) setVistaActual('pos');
-              else if (tienePermiso('inventario')) setVistaActual('inventario');
-              else if (tienePermiso('reportes')) setVistaActual('reportes');
-            }} 
-            className="btn-volver"
-          >
-            ← Ir al inicio
-          </button>
-        </div>
-      );
-    }
-
-    // 🆕 Pasar modoSoloLectura a todos los módulos
-    switch (vistaActual) {
-      case 'pos':
-        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-      
-      case 'inventario':
-        return <Inventario usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-      
-      case 'reportes':
-        return <Reportes usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-      
-      case 'devoluciones':
-        return <Devoluciones usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-      
-      case 'configuracion':
-        return <Configuracion usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-      
-      default:
-        return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
-    }
-  };
-
-  // Layout con Sidebar + Contenido
   return (
     <div className="app-layout">
-      {/* 🆕 Banner de licencia */}
       <BannerLicencia 
         estadoLicencia={estadoLicencia}
         onActivarClick={handleAbrirActivacion}
       />
-
       <Sidebar
         moduloActual={vistaActual}
         cambiarModulo={cambiarModulo}
@@ -206,9 +322,7 @@ function App() {
         colapsado={sidebarColapsado}
         toggleColapsar={toggleSidebar}
       />
-      
       <main className="app-content">
-        {/* 🆕 Agregar padding-top si hay banner visible */}
         <div className={estadoLicencia && (
           estadoLicencia.estado === 'EXPIRADO' || 
           estadoLicencia.estado === 'GRACIA' || 

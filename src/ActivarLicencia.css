@@ -280,7 +280,7 @@
 }
 
 .btn-activar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(180deg, #030614 0%, #22345c 100%);
   color: white;
 }
 
@@ -486,4 +486,30 @@
     flex-direction: column;
     gap: 8px;
   }
+}
+
+/* Botón volver */
+.btn-volver-licencia {
+  padding: 14px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  background: white;
+  color: #64748b;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  width: 100%;
+}
+
+.btn-volver-licencia:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn-volver-licencia:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

@@ -175,7 +175,16 @@ function ActivarLicencia({ onActivacionExitosa, estadoLicencia }) {
                     </>
                   )}
                 </button>
-
+                {/* 🆕 BOTÓN VOLVER (solo si NO está expirado) */}
+  {estadoLicencia?.estado !== 'EXPIRADO' && (
+    <button
+      onClick={() => onActivacionExitosa(false)}
+      className="btn-volver-licencia"
+      disabled={validando}
+    >
+      ← Volver al Sistema
+    </button>
+  )}
                 {estadoLicencia?.estado === 'EXPIRADO' && (
                   <button
                     onClick={handleModoLectura}
