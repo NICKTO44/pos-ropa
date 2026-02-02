@@ -755,3 +755,94 @@
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
 }
+
+/* ================================================
+   ESTILOS PARA MODO SOLO LECTURA
+   Agregar a POS.css e Inventario.css
+   ================================================ */
+
+/* Banner de modo lectura */
+.modo-lectura-banner {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(66, 153, 225, 0.3);
+  animation: slideInBanner 0.3s ease-out;
+}
+
+@keyframes slideInBanner {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.icono-lectura {
+  font-size: 24px;
+  animation: pulseIcon 2s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+.texto-lectura {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  flex: 1;
+}
+
+/* Elementos deshabilitados en modo lectura */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  background-color: #f7fafc;
+}
+
+/* Tarjetas de productos deshabilitadas */
+.producto-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.producto-card.disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modo-lectura-banner {
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+  
+  .icono-lectura {
+    font-size: 20px;
+  }
+}

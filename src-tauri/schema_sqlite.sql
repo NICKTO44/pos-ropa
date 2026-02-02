@@ -2,7 +2,7 @@
 -- SISTEMA DE GESTIÓN DE TIENDA - VERSIÓN SQLite
 -- Base de Datos: SQLite 3
 -- Fecha: Enero 2026
--- Versión: 1.0 - Migración desde MySQL
+-- Versión: 1.1 - Con Sistema de Licencias
 -- =====================================================
 
 PRAGMA foreign_keys = OFF;
@@ -126,6 +126,7 @@ CREATE TABLE ventas (
   estado TEXT DEFAULT 'COMPLETADA' CHECK(estado IN ('COMPLETADA', 'CANCELADA', 'PENDIENTE')),
   motivo_cancelacion TEXT,
   notas TEXT,
+  licencia_tipo TEXT, -- NUEVO: Registra con qué tipo de licencia se hizo (TRIAL, MENSUAL, ANUAL)
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 
@@ -355,6 +356,110 @@ CREATE INDEX idx_cajas_usuario ON cajas(usuario_id);
 CREATE INDEX idx_cajas_fecha ON cajas(fecha_apertura);
 CREATE INDEX idx_cajas_estado ON cajas(estado);
 
+-- =====================================================
+-- 🆕 TABLA: licencias (NUEVO)
+-- Sistema de control de licencias y períodos de prueba
+-- =====================================================
+DROP TABLE IF EXISTS licencias;
+CREATE TABLE licencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  
+  -- Fechas críticas
+  fecha_instalacion TEXT NOT NULL,
+  fecha_primera_activacion TEXT,
+  fecha_expiracion TEXT NOT NULL,
+  fecha_ultimo_aviso TEXT, -- Para controlar recordatorios
+  
+  -- Tipo y estado
+  tipo_licencia TEXT NOT NULL CHECK(tipo_licencia IN ('TRIAL', 'MENSUAL', 'ANUAL', 'PERPETUA')),
+  estado TEXT NOT NULL CHECK(estado IN ('ACTIVO', 'GRACIA', 'EXPIRADO', 'SUSPENDIDO')),
+  
+  -- Código de activación
+  codigo_activacion TEXT UNIQUE,
+  codigo_usado INTEGER DEFAULT 0, -- 0 = no usado, 1 = ya usado
+  
+  -- Información del cliente (opcional)
+  nombre_cliente TEXT,
+  email_cliente TEXT,
+  telefono_cliente TEXT,
+  
+  -- Control de intentos
+  intentos_activacion INTEGER DEFAULT 0,
+  fecha_ultimo_intento TEXT,
+  
+  -- Metadata del sistema
+  version_app TEXT,
+  sistema_operativo TEXT,
+  machine_id TEXT, -- Identificador único de la máquina
+  
+  -- Contadores y estadísticas
+  total_ventas_realizadas INTEGER DEFAULT 0,
+  total_productos_vendidos INTEGER DEFAULT 0,
+  
+  -- Control de avisos
+  avisos_enviados INTEGER DEFAULT 0, -- Cuántos recordatorios se han mostrado
+  
+  -- Timestamps
+  fecha_creacion TEXT DEFAULT (datetime('now')),
+  fecha_actualizacion TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_licencias_estado ON licencias(estado);
+CREATE INDEX idx_licencias_tipo ON licencias(tipo_licencia);
+CREATE INDEX idx_licencias_expiracion ON licencias(fecha_expiracion);
+CREATE INDEX idx_licencias_codigo ON licencias(codigo_activacion);
+
+-- =====================================================
+-- 🆕 TABLA: historial_licencias (NUEVO)
+-- Registro de todas las acciones relacionadas con licencias
+-- =====================================================
+DROP TABLE IF EXISTS historial_licencias;
+CREATE TABLE historial_licencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  
+  -- Tipo de acción
+  accion TEXT NOT NULL CHECK(accion IN (
+    'INSTALACION',
+    'ACTIVACION',
+    'RENOVACION',
+    'EXPIRACION',
+    'CAMBIO_ESTADO',
+    'INTENTO_ACTIVACION_FALLIDO',
+    'MODO_SOLO_LECTURA'
+  )),
+  
+  -- Estados anterior y nuevo
+  estado_anterior TEXT,
+  estado_nuevo TEXT,
+  tipo_licencia_anterior TEXT,
+  tipo_licencia_nueva TEXT,
+  
+  -- Código utilizado (si aplica)
+  codigo_usado TEXT,
+  
+  -- Resultado
+  resultado TEXT NOT NULL CHECK(resultado IN ('EXITOSO', 'FALLIDO')),
+  mensaje TEXT,
+  
+  -- Información adicional
+  dias_agregados INTEGER, -- Para activaciones/renovaciones
+  fecha_expiracion_anterior TEXT,
+  fecha_expiracion_nueva TEXT,
+  
+  -- Metadata
+  ip_local TEXT,
+  usuario_sistema TEXT,
+  detalles TEXT, -- JSON con info adicional
+  
+  -- Timestamp
+  fecha_hora TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_historial_accion ON historial_licencias(accion);
+CREATE INDEX idx_historial_fecha ON historial_licencias(fecha_hora);
+CREATE INDEX idx_historial_codigo ON historial_licencias(codigo_usado);
+CREATE INDEX idx_historial_resultado ON historial_licencias(resultado);
+
 PRAGMA foreign_keys = ON;
 
 -- =====================================================
@@ -367,7 +472,7 @@ INSERT INTO roles (nombre, descripcion, permisos, activo) VALUES
 
 -- =====================================================
 -- DATOS INICIALES - USUARIOS
--- Contraseñas: admin123, cajero123, almacenista123
+-- Contraseñas: admin123, cajero123, almacen123
 -- =====================================================
 INSERT INTO usuarios (username, password_hash, nombre_completo, email, rol_id, activo) VALUES 
 ('admin', '$2b$10$6sgAUnLGk2CS.I.3sNHy8.qiAuUVH7uOWYWpusN6sJU39XHjEFEGW', 'Administrador General', 'admin@sistema.com', 1, 1),
@@ -396,6 +501,43 @@ INSERT INTO categorias (nombre, descripcion, activo) VALUES
 -- =====================================================
 INSERT INTO configuracion_tienda (nombre_tienda, direccion, telefono, email, rfc, mensaje_recibo, moneda) VALUES 
 ('Mi Tienda de Ropa', 'Dirección de tu tienda', '(555) 123-4567', 'contacto@mitienda.com', 'XAXX010101000', '¡Gracias por su compra! Vuelva pronto.', 'PEN');
+
+-- =====================================================
+-- 🆕 DATOS INICIALES - LICENCIA (NUEVO)
+-- Se crea licencia TRIAL de 15 días en primera instalación
+-- =====================================================
+INSERT INTO licencias (
+  fecha_instalacion,
+  fecha_expiracion,
+  tipo_licencia,
+  estado,
+  version_app
+) VALUES (
+  datetime('now'),
+  datetime('now', '+15 days'),
+  'TRIAL',
+  'ACTIVO',
+  '1.0.0'
+);
+
+-- Registrar en historial
+INSERT INTO historial_licencias (
+  accion,
+  estado_nuevo,
+  tipo_licencia_nueva,
+  resultado,
+  mensaje,
+  dias_agregados,
+  fecha_expiracion_nueva
+) VALUES (
+  'INSTALACION',
+  'ACTIVO',
+  'TRIAL',
+  'EXITOSO',
+  'Licencia trial de 15 días creada automáticamente',
+  15,
+  datetime('now', '+15 days')
+);
 
 -- =====================================================
 -- TRIGGERS PARA ACTUALIZACIÓN DE STOCK
@@ -461,5 +603,52 @@ BEGIN
 END;
 
 -- =====================================================
--- FIN DEL SCRIPT SQLite
+-- 🆕 TRIGGERS PARA LICENCIAS (NUEVO)
+-- =====================================================
+
+-- Trigger: Actualizar fecha_actualizacion al modificar licencia
+CREATE TRIGGER trg_licencias_update
+AFTER UPDATE ON licencias
+FOR EACH ROW
+BEGIN
+  UPDATE licencias
+  SET fecha_actualizacion = datetime('now')
+  WHERE id = NEW.id;
+END;
+
+-- Trigger: Registrar cambios en historial al actualizar licencia
+CREATE TRIGGER trg_licencias_historial
+AFTER UPDATE ON licencias
+FOR EACH ROW
+WHEN OLD.estado != NEW.estado OR OLD.tipo_licencia != NEW.tipo_licencia
+BEGIN
+  INSERT INTO historial_licencias (
+    accion,
+    estado_anterior,
+    estado_nuevo,
+    tipo_licencia_anterior,
+    tipo_licencia_nueva,
+    resultado,
+    mensaje,
+    fecha_expiracion_anterior,
+    fecha_expiracion_nueva
+  ) VALUES (
+    CASE 
+      WHEN NEW.tipo_licencia != OLD.tipo_licencia THEN 'ACTIVACION'
+      WHEN NEW.estado = 'EXPIRADO' THEN 'EXPIRACION'
+      ELSE 'CAMBIO_ESTADO'
+    END,
+    OLD.estado,
+    NEW.estado,
+    OLD.tipo_licencia,
+    NEW.tipo_licencia,
+    'EXITOSO',
+    'Cambio automático de estado o tipo de licencia',
+    OLD.fecha_expiracion,
+    NEW.fecha_expiracion
+  );
+END;
+
+-- =====================================================
+-- FIN DEL SCRIPT SQLite CON SISTEMA DE LICENCIAS
 -- =====================================================

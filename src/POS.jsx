@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import Recibo from './Recibo';
 import './POS.css';
 
-function POS({ usuario, onVolver }) {
+function POS({ usuario, onVolver, modoSoloLectura }) {  // 🆕 Recibe modoSoloLectura
   const [productos, setProductos] = useState([]);
   const [productosFiltrados, setProductosFiltrados] = useState([]);
   const [carrito, setCarrito] = useState([]);
@@ -74,6 +74,12 @@ function POS({ usuario, onVolver }) {
 const buscarProductoPorCodigo = async () => {
   if (!codigoBuscar.trim()) return;
   
+  // 🆕 Verificar modo solo lectura
+  if (modoSoloLectura) {
+    mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas');
+    return;
+  }
+  
   setBuscando(true);
   try {
     // Primero intentar buscar por código exacto (para códigos de barras)
@@ -116,6 +122,12 @@ const buscarProductoPorCodigo = async () => {
 };
 
   const agregarAlCarrito = (producto) => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para agregar productos al carrito');
+      return;
+    }
+    
     const existe = carrito.find(item => item.id === producto.id);
     
     if (existe) {
@@ -146,6 +158,12 @@ const buscarProductoPorCodigo = async () => {
   };
 
   const modificarCantidad = (productoId, nuevaCantidad) => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para modificar el carrito');
+      return;
+    }
+    
     const producto = carrito.find(item => item.id === productoId);
     
     if (nuevaCantidad < 1) {
@@ -166,10 +184,22 @@ const buscarProductoPorCodigo = async () => {
   };
 
   const eliminarDelCarrito = (productoId) => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para modificar el carrito');
+      return;
+    }
+    
     setCarrito(carrito.filter(item => item.id !== productoId));
   };
 
   const aplicarDescuento = (productoId, descuento) => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para aplicar descuentos');
+      return;
+    }
+    
     const descuentoValido = Math.min(Math.max(descuento, 0), 100);
     setCarrito(carrito.map(item =>
       item.id === productoId
@@ -208,6 +238,12 @@ const buscarProductoPorCodigo = async () => {
   };
 
   const procesarVenta = async () => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas');
+      return;
+    }
+    
     if (carrito.length === 0) {
       mostrarMensaje('error', '❌ El carrito está vacío');
       return;
@@ -287,8 +323,14 @@ const buscarProductoPorCodigo = async () => {
   };
 
   const limpiarCarrito = () => {
-  setMostrarConfirmacionLimpiar(true);
-};
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para limpiar el carrito');
+      return;
+    }
+    
+    setMostrarConfirmacionLimpiar(true);
+  };
 
 const confirmarLimpiarCarrito = () => {
   setCarrito([]);
@@ -304,9 +346,19 @@ const confirmarLimpiarCarrito = () => {
         <button onClick={onVolver} className="btn-volver">
           ← Volver
         </button>
-        <h2> Punto de Venta</h2>
+        <h2>🛒 Punto de Venta</h2>
         <div className="pos-usuario">{usuario.nombre_completo}</div>
       </div>
+
+      {/* 🆕 Banner de modo solo lectura */}
+      {modoSoloLectura && (
+        <div className="modo-lectura-banner">
+          <span className="icono-lectura">📖</span>
+          <span className="texto-lectura">
+            Modo Solo Lectura - Puedes ver productos pero no procesar ventas
+          </span>
+        </div>
+      )}
 
       <div className="pos-content">
         <div className="pos-left">
@@ -320,13 +372,14 @@ const confirmarLimpiarCarrito = () => {
                 onChange={(e) => setCodigoBuscar(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && buscarProductoPorCodigo()}
                 placeholder="Escanea código o escribe nombre..."
-                disabled={buscando}
+                disabled={buscando || modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
                 autoFocus
               />
               <select 
                 value={categoriaSeleccionada}
                 onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 className="select-categoria"
+                disabled={modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
               >
                 {categorias.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -334,7 +387,7 @@ const confirmarLimpiarCarrito = () => {
               </select>
               <button 
                 onClick={buscarProductoPorCodigo}
-                disabled={buscando}
+                disabled={buscando || modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
               >
                 {buscando ? 'Buscando...' : '🔍 Buscar'}
               </button>
@@ -355,8 +408,9 @@ const confirmarLimpiarCarrito = () => {
               {productosFiltrados.map(producto => (
                 <div 
                   key={producto.id} 
-                  className="producto-card"
-                  onClick={() => agregarAlCarrito(producto)}
+                  className={`producto-card ${modoSoloLectura ? 'disabled' : ''}`}  // 🆕 Clase disabled
+                  onClick={() => !modoSoloLectura && agregarAlCarrito(producto)}  // 🆕 Solo funciona si NO está en modo lectura
+                  style={{ cursor: modoSoloLectura ? 'not-allowed' : 'pointer', opacity: modoSoloLectura ? 0.6 : 1 }}
                 >
                   <div className="producto-nombre">{producto.nombre}</div>
                   <div className="producto-precio">S/ {producto.precio.toFixed(2)}</div>
@@ -374,7 +428,7 @@ const confirmarLimpiarCarrito = () => {
             {carrito.length === 0 ? (
               <div className="carrito-vacio">
                 <p>El carrito está vacío</p>
-                <p>Escanea un producto para comenzar</p>
+                <p>{modoSoloLectura ? 'Activa tu licencia para procesar ventas' : 'Escanea un producto para comenzar'}</p>
               </div>
             ) : (
               <div className="carrito-items">
@@ -390,6 +444,7 @@ const confirmarLimpiarCarrito = () => {
                         <button 
                           onClick={() => modificarCantidad(item.id, item.cantidad - 1)}
                           className="btn-cantidad"
+                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
                         >
                           −
                         </button>
@@ -400,10 +455,12 @@ const confirmarLimpiarCarrito = () => {
                           className="input-cantidad"
                           min="1"
                           max={item.stock}
+                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
                         />
                         <button 
                           onClick={() => modificarCantidad(item.id, item.cantidad + 1)}
                           className="btn-cantidad"
+                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
                         >
                           +
                         </button>
@@ -418,12 +475,14 @@ const confirmarLimpiarCarrito = () => {
                           value={item.descuento_porcentaje || 0}
                           onChange={(e) => aplicarDescuento(item.id, parseFloat(e.target.value) || 0)}
                           className="input-descuento"
+                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
                         />
                       </div>
                       
                       <button 
                         onClick={() => eliminarDelCarrito(item.id)}
                         className="btn-eliminar"
+                        disabled={modoSoloLectura}  // 🆕 Deshabilitado
                       >
                         🗑️
                       </button>
@@ -467,19 +526,22 @@ const confirmarLimpiarCarrito = () => {
             <div className="metodos">
               <button
                 className={metodoPago === 'EFECTIVO' ? 'active' : ''}
-                onClick={() => setMetodoPago('EFECTIVO')}
+                onClick={() => !modoSoloLectura && setMetodoPago('EFECTIVO')}  // 🆕 Solo funciona si NO está en modo lectura
+                disabled={modoSoloLectura}  // 🆕 Deshabilitado
               >
                 💵 Efectivo
               </button>
               <button
                 className={metodoPago === 'TARJETA' ? 'active' : ''}
-                onClick={() => setMetodoPago('TARJETA')}
+                onClick={() => !modoSoloLectura && setMetodoPago('TARJETA')}
+                disabled={modoSoloLectura}  // 🆕 Deshabilitado
               >
                 💳 Tarjeta
               </button>
               <button
                 className={metodoPago === 'TRANSFERENCIA' ? 'active' : ''}
-                onClick={() => setMetodoPago('TRANSFERENCIA')}
+                onClick={() => !modoSoloLectura && setMetodoPago('TRANSFERENCIA')}
+                disabled={modoSoloLectura}  // 🆕 Deshabilitado
               >
                 📱 Transferencia
               </button>
@@ -495,12 +557,13 @@ const confirmarLimpiarCarrito = () => {
                 onChange={(e) => setMontoRecibido(e.target.value)}
                 placeholder="0.00"
                 step="0.01"
+                disabled={modoSoloLectura}  // 🆕 Deshabilitado
               />
               {montoRecibido && (
                 <div className="cambio">
                   <span>Cambio:</span>
                   <span className={calcularCambio() >= 0 ? 'positivo' : 'negativo'}>
-                    S/ ${calcularCambio().toFixed(2)}
+                    S/ {calcularCambio().toFixed(2)}
                   </span>
                 </div>
               )}
@@ -517,16 +580,16 @@ const confirmarLimpiarCarrito = () => {
             <button 
               onClick={limpiarCarrito}
               className="btn-limpiar"
-              disabled={carrito.length === 0}
+              disabled={carrito.length === 0 || modoSoloLectura}  // 🆕 Deshabilitado
             >
               🗑️ Limpiar
             </button>
             <button 
               onClick={procesarVenta}
               className="btn-procesar"
-              disabled={carrito.length === 0 || procesando}
+              disabled={carrito.length === 0 || procesando || modoSoloLectura}  // 🆕 Deshabilitado
             >
-              {procesando ? 'Procesando...' : '✅ Procesar Venta'}
+              {procesando ? 'Procesando...' : modoSoloLectura ? '🔒 Licencia Expirada' : '✅ Procesar Venta'}
             </button>
           </div>
         </div>

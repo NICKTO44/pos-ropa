@@ -13,7 +13,13 @@ use commands::*;
 
 fn main() {
     // Obtener ruta de la base de datos
-    let db_path = default_database_path();
+   let db_path = match database::connection::setup_database() {
+    Ok(path) => path,
+    Err(e) => {
+        eprintln!("❌ Error al configurar base de datos: {}", e);
+        std::process::exit(1);
+    }
+};
     
     // Verificar si la base de datos existe, si no, crearla
     if !database_exists(&db_path) {
@@ -78,6 +84,13 @@ fn main() {
             // Comandos de devoluciones
             buscar_venta_para_devolucion,
             procesar_devolucion,
+            // Comandos de licencias
+            commands::licencias::obtener_estado_licencia,
+            commands::licencias::verificar_licencia,
+            commands::licencias::activar_licencia,
+            commands::licencias::calcular_dias_restantes,
+            commands::licencias::validar_codigo_activacion,
+            commands::licencias::obtener_info_debug_licencia,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

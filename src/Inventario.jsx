@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import './Inventario.css';
 
-function Inventario({ usuario, onVolver }) {
+function Inventario({ usuario, onVolver, modoSoloLectura }) {  // 🆕 Recibe modoSoloLectura
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [filtro, setFiltro] = useState('');
@@ -21,7 +21,7 @@ function Inventario({ usuario, onVolver }) {
     stock: '',
     stock_minimo: '',
     categoria_id: '',
-    descuento_porcentaje: 0  // ← NUEVO
+    descuento_porcentaje: 0
   });
 
   useEffect(() => {
@@ -62,6 +62,12 @@ function Inventario({ usuario, onVolver }) {
   };
 
   const abrirModalNuevo = () => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para agregar productos');
+      return;
+    }
+    
     setProductoEditando(null);
     setFormData({
       codigo: '',
@@ -71,12 +77,18 @@ function Inventario({ usuario, onVolver }) {
       stock: '',
       stock_minimo: '',
       categoria_id: categorias.length > 0 ? categorias[0][0] : '',
-      descuento_porcentaje: 0  // ← NUEVO
+      descuento_porcentaje: 0
     });
     setMostrarModal(true);
   };
 
   const abrirModalEditar = (producto) => {
+    // 🆕 Verificar modo solo lectura
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para editar productos');
+      return;
+    }
+    
     setProductoEditando(producto);
     setFormData({
       codigo: producto.codigo,
@@ -86,7 +98,7 @@ function Inventario({ usuario, onVolver }) {
       stock: producto.stock.toString(),
       stock_minimo: producto.stock_minimo.toString(),
       categoria_id: producto.categoria_id.toString(),
-      descuento_porcentaje: producto.descuento_porcentaje || 0  // ← NUEVO
+      descuento_porcentaje: producto.descuento_porcentaje || 0
     });
     setMostrarModal(true);
   };
@@ -98,6 +110,13 @@ function Inventario({ usuario, onVolver }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 🆕 Verificar modo solo lectura (por si acaso)
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para guardar cambios');
+      cerrarModal();
+      return;
+    }
 
     try {
       if (productoEditando) {
@@ -111,7 +130,7 @@ function Inventario({ usuario, onVolver }) {
           stock: parseInt(formData.stock),
           stockMinimo: parseInt(formData.stock_minimo),
           categoriaId: parseInt(formData.categoria_id),
-          descuentoPorcentaje: parseFloat(formData.descuento_porcentaje) || 0  // ← NUEVO
+          descuentoPorcentaje: parseFloat(formData.descuento_porcentaje) || 0
         });
 
         if (resultado.success) {
@@ -132,7 +151,7 @@ function Inventario({ usuario, onVolver }) {
             stock: parseInt(formData.stock),
             stock_minimo: parseInt(formData.stock_minimo),
             categoria_id: parseInt(formData.categoria_id),
-            descuento_porcentaje: parseFloat(formData.descuento_porcentaje) || 0  // ← NUEVO
+            descuento_porcentaje: parseFloat(formData.descuento_porcentaje) || 0
           }
         });
 
@@ -170,8 +189,18 @@ function Inventario({ usuario, onVolver }) {
           ← Volver
         </button>
         <h2>Gestión de Inventario</h2>
-        <div className="inventario-usuario"> {usuario.nombre_completo}</div>
+        <div className="inventario-usuario">👤 {usuario.nombre_completo}</div>
       </div>
+
+      {/* 🆕 Banner de modo solo lectura */}
+      {modoSoloLectura && (
+        <div className="modo-lectura-banner">
+          <span className="icono-lectura">📖</span>
+          <span className="texto-lectura">
+            Modo Solo Lectura - Puedes ver el inventario pero no editarlo
+          </span>
+        </div>
+      )}
 
       <div className="inventario-content">
         {/* Barra de herramientas */}
@@ -215,8 +244,10 @@ function Inventario({ usuario, onVolver }) {
             <button 
               onClick={abrirModalNuevo}
               className="btn-nuevo"
+              disabled={modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
+              style={{ opacity: modoSoloLectura ? 0.6 : 1, cursor: modoSoloLectura ? 'not-allowed' : 'pointer' }}
             >
-              ➕ Nuevo Producto
+              {modoSoloLectura ? '🔒 Nuevo Producto' : '➕ Nuevo Producto'}
             </button>
           </div>
         </div>
@@ -298,8 +329,10 @@ function Inventario({ usuario, onVolver }) {
                       <button 
                         onClick={() => abrirModalEditar(producto)}
                         className="btn-editar"
+                        disabled={modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
+                        style={{ opacity: modoSoloLectura ? 0.6 : 1, cursor: modoSoloLectura ? 'not-allowed' : 'pointer' }}
                       >
-                        ✏️ Editar
+                        {modoSoloLectura ? '🔒 Editar' : '✏️ Editar'}
                       </button>
                     </td>
                   </tr>
@@ -311,7 +344,7 @@ function Inventario({ usuario, onVolver }) {
       </div>
 
       {/* Modal para agregar/editar producto */}
-      {mostrarModal && (
+      {mostrarModal && !modoSoloLectura && (  // 🆕 Solo mostrar si NO está en modo lectura
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
@@ -397,7 +430,6 @@ function Inventario({ usuario, onVolver }) {
                 </div>
               </div>
 
-              {/* ← NUEVO CAMPO DE DESCUENTO */}
               <div className="form-group">
                 <label>Descuento % (opcional)</label>
                 <input

@@ -202,3 +202,67 @@ body {
   content: '...';
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+
+/* Pantalla de carga inicial */
+.app-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.loading-spinner {
+  text-align: center;
+  color: white;
+}
+
+.spinner-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.loading-spinner p {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Contenido con banner */
+.content-with-banner {
+  padding-top: 60px; /* Espacio para el banner */
+  transition: padding-top 0.3s ease;
+}
+
+/* Ajuste para que el contenido no quede debajo del banner */
+@media (max-width: 768px) {
+  .content-with-banner {
+    padding-top: 100px; /* Más espacio en móvil porque el banner es más alto */
+  }
+}

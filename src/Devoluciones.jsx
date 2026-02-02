@@ -181,7 +181,7 @@ function Devoluciones({ usuario, onVolver }) {
                 </div>
                 <div className="info-item">
                   <span className="label">Total Original:</span>
-                  <span className="value">${ventaEncontrada.total.toFixed(2)}</span>
+                  <span className="value">S/{ventaEncontrada.total.toFixed(2)}</span>
                 </div>
                 <div className="info-item">
                   <span className="label">Método Pago:</span>
@@ -210,7 +210,7 @@ function Devoluciones({ usuario, onVolver }) {
                       <div className="producto-nombre">{producto.nombre}</div>
                       <div className="producto-detalles">
                         Cantidad vendida: {producto.cantidad} | 
-                        Precio unitario: ${producto.precio_unitario.toFixed(2)}
+                        Precio unitario: S/{producto.precio_unitario.toFixed(2)}
                       </div>
                     </div>
 
@@ -234,7 +234,7 @@ function Devoluciones({ usuario, onVolver }) {
                     <div className="producto-subtotal">
                       {productosSeleccionados[producto.producto_id] && (
                         <span className="subtotal-devolucion">
-                          ${(producto.precio_unitario * productosSeleccionados[producto.producto_id]).toFixed(2)}
+                          S/{(producto.precio_unitario * productosSeleccionados[producto.producto_id]).toFixed(2)}
                         </span>
                       )}
                     </div>
@@ -258,7 +258,7 @@ function Devoluciones({ usuario, onVolver }) {
 
                 <div className="total-devolucion-card">
                   <div className="total-label">💵 Total a Devolver:</div>
-                  <div className="total-monto">S/ ${calcularTotalDevolucion().toFixed(2)}</div>
+                  <div className="total-monto">S/ {calcularTotalDevolucion().toFixed(2)}</div>
                 </div>
 
                 <div className="acciones-devolucion">
@@ -286,7 +286,7 @@ function Devoluciones({ usuario, onVolver }) {
             <h3>⚠️ Confirmar Devolución</h3>
             <p>¿Estás seguro de procesar esta devolución?</p>
             <div className="confirmacion-detalles">
-              <strong>Monto a devolver: S/ ${calcularTotalDevolucion().toFixed(2)}</strong>
+              <strong>Monto a devolver: S/{calcularTotalDevolucion().toFixed(2)}</strong>
             </div>
             <div className="confirmacion-acciones">
               <button onClick={() => setMostrarConfirmacion(false)} className="btn-cancelar-modal">

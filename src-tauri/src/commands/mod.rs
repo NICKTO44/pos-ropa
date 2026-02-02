@@ -6,7 +6,9 @@ pub mod productos;
 pub mod ventas;
 pub mod reportes;
 pub mod configuracion;
-pub mod devoluciones; 
+pub mod devoluciones;
+pub mod licencias;
+
 
 pub use auth::{login, test_database_connection};
 pub use productos::{
