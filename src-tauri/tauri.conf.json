@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Sistema POS Ropa v2.0.3",
+        "title": "Sistema POS Ropa v2.0.4",
         "width": 1280,
         "height": 800,
         "resizable": true,

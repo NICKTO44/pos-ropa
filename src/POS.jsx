@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import Recibo from './Recibo';
 import './POS.css';
 
-function POS({ usuario, onVolver, modoSoloLectura }) {  // 🆕 Recibe modoSoloLectura
+function POS({ usuario, onVolver, modoSoloLectura }) {
   const [productos, setProductos] = useState([]);
   const [productosFiltrados, setProductosFiltrados] = useState([]);
   const [carrito, setCarrito] = useState([]);
@@ -20,7 +20,10 @@ function POS({ usuario, onVolver, modoSoloLectura }) {  // 🆕 Recibe modoSoloL
   const [mostrarConfirmacionLimpiar, setMostrarConfirmacionLimpiar] = useState(false);
   const inputCodigoRef = useRef(null);
 
-  // Cargar productos y categorías al inicio
+  // 🆕 Modal selector de talla
+  const [modalTalla, setModalTalla] = useState(null);
+  // modalTalla = { producto, variantes: [{id, talla, stock}] }
+
   useEffect(() => {
     cargarProductos();
     cargarCategorias();
@@ -47,109 +50,141 @@ function POS({ usuario, onVolver, modoSoloLectura }) {  // 🆕 Recibe modoSoloL
     }
   };
 
-  // Búsqueda inteligente en tiempo real
   useEffect(() => {
     const filtrar = async () => {
       if (codigoBuscar.trim() === '' && categoriaSeleccionada === 'TODAS') {
         setProductosFiltrados(productos);
         return;
       }
-
       try {
         const resultado = await invoke('buscar_productos_filtrado', {
           termino: codigoBuscar.trim(),
-          categoria: categoriaSeleccionada === 'TODAS' ? null : categoriaSeleccionada
+          categoria: categoriaSeleccionada === 'TODAS' ? null : categoriaSeleccionada,
         });
         setProductosFiltrados(resultado);
-      } catch (error) {
-        console.error('Error al filtrar:', error);
+      } catch {
         setProductosFiltrados([]);
       }
     };
-
-    const timeoutId = setTimeout(filtrar, 300); // Debounce de 300ms
-    return () => clearTimeout(timeoutId);
+    const t = setTimeout(filtrar, 300);
+    return () => clearTimeout(t);
   }, [codigoBuscar, categoriaSeleccionada, productos]);
 
-const buscarProductoPorCodigo = async () => {
-  if (!codigoBuscar.trim()) return;
-  
-  // 🆕 Verificar modo solo lectura
-  if (modoSoloLectura) {
-    mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas');
-    return;
-  }
-  
-  setBuscando(true);
-  try {
-    // Primero intentar buscar por código exacto (para códigos de barras)
-    const resultadoCodigo = await invoke('buscar_producto_por_codigo', { 
-      codigo: codigoBuscar.trim() 
-    });
-    
-    if (resultadoCodigo.success && resultadoCodigo.producto) {
-      // Encontrado por código exacto
-      agregarAlCarrito(resultadoCodigo.producto);
-      setCodigoBuscar('');
-      mostrarMensaje('success', `✅ ${resultadoCodigo.producto.nombre} agregado`);
-    } else {
-      // No encontrado por código, buscar por nombre
-      const resultadoFiltrado = await invoke('buscar_productos_filtrado', {
-        termino: codigoBuscar.trim(),
-        categoria: categoriaSeleccionada === 'TODAS' ? null : categoriaSeleccionada
-      });
-      
-      if (resultadoFiltrado.length === 1) {
-        // Solo un resultado, agregarlo automáticamente
-        agregarAlCarrito(resultadoFiltrado[0]);
-        setCodigoBuscar('');
-        mostrarMensaje('success', `✅ ${resultadoFiltrado[0].nombre} agregado`);
-      } else if (resultadoFiltrado.length > 1) {
-        // Múltiples resultados, mostrar mensaje
-        mostrarMensaje('error', `⚠️ ${resultadoFiltrado.length} productos encontrados. Haz clic en uno.`);
-      } else {
-        // Ningún resultado
-        mostrarMensaje('error', '❌ Producto no encontrado');
-      }
+  const buscarProductoPorCodigo = async () => {
+    if (!codigoBuscar.trim()) return;
+    if (modoSoloLectura) {
+      mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas');
+      return;
     }
-  } catch (error) {
-    console.error('Error:', error);
-    mostrarMensaje('error', '❌ Error al buscar producto');
-  } finally {
-    setBuscando(false);
-    inputCodigoRef.current?.focus();
-  }
+    setBuscando(true);
+    try {
+      const resultadoCodigo = await invoke('buscar_producto_por_codigo', {
+        codigo: codigoBuscar.trim(),
+      });
+      if (resultadoCodigo.success && resultadoCodigo.producto) {
+        await manejarAgregarProducto(resultadoCodigo.producto);
+        setCodigoBuscar('');
+      } else {
+        const resultadoFiltrado = await invoke('buscar_productos_filtrado', {
+          termino: codigoBuscar.trim(),
+          categoria: categoriaSeleccionada === 'TODAS' ? null : categoriaSeleccionada,
+        });
+        if (resultadoFiltrado.length === 1) {
+          await manejarAgregarProducto(resultadoFiltrado[0]);
+          setCodigoBuscar('');
+        } else if (resultadoFiltrado.length > 1) {
+          mostrarMensaje('error', `⚠️ ${resultadoFiltrado.length} productos encontrados. Haz clic en uno.`);
+        } else {
+          mostrarMensaje('error', '❌ Producto no encontrado');
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      mostrarMensaje('error', '❌ Error al buscar producto');
+    } finally {
+      setBuscando(false);
+      inputCodigoRef.current?.focus();
+    }
+  };
+
+const getStockClass = (stock) => {
+  if (stock === 0) return 'out';
+  if (stock <= 3)  return 'low';
+  return 'normal';
 };
 
-  const agregarAlCarrito = (producto) => {
-    // 🆕 Verificar modo solo lectura
+const getStockTexto = (stock) => {
+  if (stock === 0) return 'Agotado';
+  return `Stock: ${stock}`;
+};
+
+  // 🆕 Punto central para agregar producto — decide si pedir talla o no
+  const manejarAgregarProducto = async (producto) => {
     if (modoSoloLectura) {
       mostrarMensaje('error', '🔒 Activa tu licencia para agregar productos al carrito');
       return;
     }
-    
-    const existe = carrito.find(item => item.id === producto.id);
-    
+
+    if (producto.tiene_variantes) {
+      // Cargar variantes y mostrar modal
+      try {
+        const variantes = await invoke('obtener_variantes_producto', {
+          productoId: producto.id,
+        });
+        const disponibles = variantes.filter(v => v.stock > 0);
+        if (disponibles.length === 0) {
+          mostrarMensaje('error', '❌ Sin stock en ninguna talla');
+          return;
+        }
+        setModalTalla({ producto, variantes: disponibles });
+      } catch (e) {
+        console.error('Error al cargar variantes:', e);
+        mostrarMensaje('error', '❌ Error al cargar tallas');
+      }
+    } else {
+      agregarAlCarrito(producto, null, null);
+    }
+  };
+
+  // 🆕 Confirmar talla seleccionada desde el modal
+  const confirmarTalla = (variante) => {
+    if (!modalTalla) return;
+    agregarAlCarrito(modalTalla.producto, variante.id, variante.talla, variante.stock);
+    setModalTalla(null);
+    mostrarMensaje('success', `✅ ${modalTalla.producto.nombre} talla ${variante.talla} agregado`);
+    inputCodigoRef.current?.focus();
+  };
+
+  const agregarAlCarrito = (producto, varianteId = null, talla = null, stockVariante = null) => {
+    // Clave única en carrito: producto_id + variante_id (o solo producto_id si no tiene tallas)
+    const claveCarrito = varianteId ? `${producto.id}-${varianteId}` : `${producto.id}`;
+    const stockReal = stockVariante !== null ? stockVariante : producto.stock;
+
+    const existe = carrito.find(item => item.claveCarrito === claveCarrito);
+
     if (existe) {
-      if (existe.cantidad < producto.stock) {
+      if (existe.cantidad < stockReal) {
         setCarrito(carrito.map(item =>
-          item.id === producto.id
+          item.claveCarrito === claveCarrito
             ? { ...item, cantidad: item.cantidad + 1 }
             : item
         ));
       } else {
-        mostrarMensaje('error', '❌ Stock insuficiente');
+        mostrarMensaje('error', `❌ Stock insuficiente para talla ${talla || ''}`);
       }
     } else {
-      if (producto.stock > 0) {
+      if (stockReal > 0) {
         setCarrito([...carrito, {
+          claveCarrito,
           id: producto.id,
+          variante_id: varianteId,
+          talla,
           codigo: producto.codigo,
           nombre: producto.nombre,
           precio: producto.precio,
           cantidad: 1,
-          stock: producto.stock,
-          descuento_porcentaje: producto.descuento_porcentaje || 0
+          stock: stockReal,
+          descuento_porcentaje: producto.descuento_porcentaje || 0,
         }]);
       } else {
         mostrarMensaje('error', '❌ Producto sin stock');
@@ -157,127 +192,76 @@ const buscarProductoPorCodigo = async () => {
     }
   };
 
-  const modificarCantidad = (productoId, nuevaCantidad) => {
-    // 🆕 Verificar modo solo lectura
-    if (modoSoloLectura) {
-      mostrarMensaje('error', '🔒 Activa tu licencia para modificar el carrito');
-      return;
-    }
-    
-    const producto = carrito.find(item => item.id === productoId);
-    
-    if (nuevaCantidad < 1) {
-      eliminarDelCarrito(productoId);
-      return;
-    }
-
+  const modificarCantidad = (claveCarrito, nuevaCantidad) => {
+    if (modoSoloLectura) return;
+    const producto = carrito.find(item => item.claveCarrito === claveCarrito);
+    if (nuevaCantidad < 1) { eliminarDelCarrito(claveCarrito); return; }
     if (nuevaCantidad > producto.stock) {
       mostrarMensaje('error', `❌ Solo hay ${producto.stock} en stock`);
       return;
     }
-
     setCarrito(carrito.map(item =>
-      item.id === productoId
-        ? { ...item, cantidad: nuevaCantidad }
-        : item
+      item.claveCarrito === claveCarrito ? { ...item, cantidad: nuevaCantidad } : item
     ));
   };
 
-  const eliminarDelCarrito = (productoId) => {
-    // 🆕 Verificar modo solo lectura
-    if (modoSoloLectura) {
-      mostrarMensaje('error', '🔒 Activa tu licencia para modificar el carrito');
-      return;
-    }
-    
-    setCarrito(carrito.filter(item => item.id !== productoId));
+  const eliminarDelCarrito = (claveCarrito) => {
+    if (modoSoloLectura) return;
+    setCarrito(carrito.filter(item => item.claveCarrito !== claveCarrito));
   };
 
-  const aplicarDescuento = (productoId, descuento) => {
-    // 🆕 Verificar modo solo lectura
-    if (modoSoloLectura) {
-      mostrarMensaje('error', '🔒 Activa tu licencia para aplicar descuentos');
-      return;
-    }
-    
-    const descuentoValido = Math.min(Math.max(descuento, 0), 100);
+  const aplicarDescuento = (claveCarrito, descuento) => {
+    if (modoSoloLectura) return;
+    const d = Math.min(Math.max(descuento, 0), 100);
     setCarrito(carrito.map(item =>
-      item.id === productoId
-        ? { ...item, descuento_porcentaje: descuentoValido }
-        : item
+      item.claveCarrito === claveCarrito ? { ...item, descuento_porcentaje: d } : item
     ));
   };
 
   const calcularSubtotalItem = (item) => {
-    const subtotal = item.precio * item.cantidad;
-    const descuento = subtotal * ((item.descuento_porcentaje || 0) / 100);
-    return subtotal - descuento;
+    const sub = item.precio * item.cantidad;
+    return sub - sub * ((item.descuento_porcentaje || 0) / 100);
   };
 
-  const calcularSubtotal = () => {
-    return carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-  };
-
-  const calcularDescuentoTotal = () => {
-    return carrito.reduce((sum, item) => {
-      const subtotal = item.precio * item.cantidad;
-      const descuento = subtotal * ((item.descuento_porcentaje || 0) / 100);
-      return sum + descuento;
-    }, 0);
-  };
-
-  const calcularTotal = () => {
-    return carrito.reduce((sum, item) => sum + calcularSubtotalItem(item), 0);
-  };
-
+  const calcularSubtotal    = () => carrito.reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const calcularDescuentoTotal = () => carrito.reduce((s, i) => {
+    const sub = i.precio * i.cantidad;
+    return s + sub * ((i.descuento_porcentaje || 0) / 100);
+  }, 0);
+  const calcularTotal = () => carrito.reduce((s, i) => s + calcularSubtotalItem(i), 0);
   const calcularCambio = () => {
     if (metodoPago !== 'EFECTIVO') return 0;
-    const recibido = parseFloat(montoRecibido) || 0;
-    const total = calcularTotal();
-    return recibido - total;
+    return (parseFloat(montoRecibido) || 0) - calcularTotal();
   };
 
   const procesarVenta = async () => {
-    // 🆕 Verificar modo solo lectura
-    if (modoSoloLectura) {
-      mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas');
-      return;
-    }
-    
-    if (carrito.length === 0) {
-      mostrarMensaje('error', '❌ El carrito está vacío');
-      return;
-    }
-
-    const total = calcularTotal();
-    
-    if (metodoPago === 'EFECTIVO') {
-      const recibido = parseFloat(montoRecibido) || 0;
-      if (recibido < total) {
-        mostrarMensaje('error', '❌ Monto insuficiente');
-        return;
-      }
+    if (modoSoloLectura) { mostrarMensaje('error', '🔒 Activa tu licencia para procesar ventas'); return; }
+    if (carrito.length === 0) { mostrarMensaje('error', '❌ El carrito está vacío'); return; }
+    if (metodoPago === 'EFECTIVO' && (parseFloat(montoRecibido) || 0) < calcularTotal()) {
+      mostrarMensaje('error', '❌ Monto insuficiente'); return;
     }
 
     setProcesando(true);
-
     try {
+      // 🆕 Incluir variante_id y talla en cada producto
       const productosVenta = carrito.map(item => ({
         id: item.id,
         nombre: item.nombre,
         codigo: item.codigo,
         precio: item.precio,
         cantidad: item.cantidad,
-        descuentoPorcentaje: item.descuento_porcentaje || 0
+        descuentoPorcentaje: item.descuento_porcentaje || 0,
+        varianteId: item.variante_id || null,
+        talla: item.talla || null,
       }));
 
       const resultado = await invoke('procesar_venta', {
         productos: productosVenta,
         total: calcularTotal(),
-        metodoPago: metodoPago,
+        metodoPago,
         montoRecibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : null,
         cambio: metodoPago === 'EFECTIVO' ? calcularCambio() : null,
-        usuarioId: usuario.id
+        usuarioId: usuario.id,
       });
 
       const ventaParaRecibo = {
@@ -285,32 +269,28 @@ const buscarProductoPorCodigo = async () => {
         subtotal: calcularSubtotal(),
         descuento: calcularDescuentoTotal(),
         total: calcularTotal(),
-        metodoPago: metodoPago,
+        metodoPago,
         montoRecibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : 0,
         cambio: metodoPago === 'EFECTIVO' ? calcularCambio() : 0,
         cajero: usuario.nombre_completo,
         productos: carrito.map(item => ({
-          nombre: item.nombre,
+          nombre: item.nombre + (item.talla ? ` (${item.talla})` : ''),
           cantidad: item.cantidad,
           precio: item.precio,
-          descuento: item.descuento_porcentaje || 0
-        }))
+          descuento: item.descuento_porcentaje || 0,
+        })),
       };
 
       setDatosVenta(ventaParaRecibo);
       setMostrarRecibo(true);
-      
       setCarrito([]);
       setMontoRecibido('');
       setCodigoBuscar('');
-      
       await cargarProductos();
-      
       mostrarMensaje('success', '✅ Venta procesada exitosamente');
-      
     } catch (error) {
       console.error('❌ Error al procesar venta:', error);
-      mostrarMensaje('error', '❌ Error al procesar venta');
+      mostrarMensaje('error', `❌ ${error}`);
     } finally {
       setProcesando(false);
       inputCodigoRef.current?.focus();
@@ -323,34 +303,26 @@ const buscarProductoPorCodigo = async () => {
   };
 
   const limpiarCarrito = () => {
-    // 🆕 Verificar modo solo lectura
-    if (modoSoloLectura) {
-      mostrarMensaje('error', '🔒 Activa tu licencia para limpiar el carrito');
-      return;
-    }
-    
+    if (modoSoloLectura) return;
     setMostrarConfirmacionLimpiar(true);
   };
 
-const confirmarLimpiarCarrito = () => {
-  setCarrito([]);
-  setMontoRecibido('');
-  setCodigoBuscar('');
-  setMostrarConfirmacionLimpiar(false);
-  inputCodigoRef.current?.focus();
-};
+  const confirmarLimpiarCarrito = () => {
+    setCarrito([]);
+    setMontoRecibido('');
+    setCodigoBuscar('');
+    setMostrarConfirmacionLimpiar(false);
+    inputCodigoRef.current?.focus();
+  };
 
   return (
     <div className="pos-container">
       <div className="pos-header">
-        <button onClick={onVolver} className="btn-volver">
-          ← Volver
-        </button>
+        <button onClick={onVolver} className="btn-volver">← Volver</button>
         <h2>🛒 Punto de Venta</h2>
         <div className="pos-usuario">{usuario.nombre_completo}</div>
       </div>
 
-      {/* 🆕 Banner de modo solo lectura */}
       {modoSoloLectura && (
         <div className="modo-lectura-banner">
           <span className="icono-lectura">📖</span>
@@ -361,6 +333,7 @@ const confirmarLimpiarCarrito = () => {
       )}
 
       <div className="pos-content">
+        {/* ===== IZQUIERDA: Búsqueda y productos ===== */}
         <div className="pos-left">
           <div className="busqueda-rapida">
             <h3>🔍 Buscar Producto</h3>
@@ -372,22 +345,22 @@ const confirmarLimpiarCarrito = () => {
                 onChange={(e) => setCodigoBuscar(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && buscarProductoPorCodigo()}
                 placeholder="Escanea código o escribe nombre..."
-                disabled={buscando || modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
+                disabled={buscando || modoSoloLectura}
                 autoFocus
               />
-              <select 
+              <select
                 value={categoriaSeleccionada}
                 onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 className="select-categoria"
-                disabled={modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
+                disabled={modoSoloLectura}
               >
                 {categorias.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
-              <button 
+              <button
                 onClick={buscarProductoPorCodigo}
-                disabled={buscando || modoSoloLectura}  // 🆕 Deshabilitado en modo lectura
+                disabled={buscando || modoSoloLectura}
               >
                 {buscando ? 'Buscando...' : '🔍 Buscar'}
               </button>
@@ -404,27 +377,53 @@ const confirmarLimpiarCarrito = () => {
 
           <div className="lista-productos">
             <h3>📦 Productos Disponibles</h3>
-            <div className="productos-grid">
-              {productosFiltrados.map(producto => (
-                <div 
-                  key={producto.id} 
-                  className={`producto-card ${modoSoloLectura ? 'disabled' : ''}`}  // 🆕 Clase disabled
-                  onClick={() => !modoSoloLectura && agregarAlCarrito(producto)}  // 🆕 Solo funciona si NO está en modo lectura
-                  style={{ cursor: modoSoloLectura ? 'not-allowed' : 'pointer', opacity: modoSoloLectura ? 0.6 : 1 }}
+            
+            
+          <div className="productos-grid">
+            {productosFiltrados.map(producto => {
+              const sinStock   = producto.stock === 0;
+              const stockClass = getStockClass(producto.stock);
+
+              return (
+                <div
+                  key={producto.id}
+                  className={[
+                    'producto-card',
+                    modoSoloLectura      ? 'disabled'   : '',
+                    sinStock             ? 'sin-stock'  : '',
+                    stockClass === 'low' ? 'stock-low'  : '',
+                    producto.tiene_variantes ? 'con-tallas' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => !modoSoloLectura && !sinStock && manejarAgregarProducto(producto)}
                 >
                   <div className="producto-nombre">{producto.nombre}</div>
                   <div className="producto-precio">S/ {producto.precio.toFixed(2)}</div>
-                  <div className="producto-stock">Stock: {producto.stock}</div>
+
+                  <div className="producto-stock">
+                    <span className={`stock-texto ${stockClass !== 'normal' ? stockClass : ''}`}>
+                      {getStockTexto(producto.stock)}
+                    </span>
+                  </div>
+
+                  {producto.tiene_variantes && producto.tallas_disponibles && (
+                    <div className="tallas-chips">
+                      {producto.tallas_disponibles.map(t => (
+                        <span key={t} className="talla-chip-card">{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
           </div>
         </div>
 
+        {/* ===== DERECHA: Carrito ===== */}
         <div className="pos-right">
           <div className="carrito">
             <h3>🛒 Carrito de Compra</h3>
-            
+
             {carrito.length === 0 ? (
               <div className="carrito-vacio">
                 <p>El carrito está vacío</p>
@@ -433,65 +432,61 @@ const confirmarLimpiarCarrito = () => {
             ) : (
               <div className="carrito-items">
                 {carrito.map(item => (
-                  <div key={item.id} className="carrito-item">
+                  <div key={item.claveCarrito} className="carrito-item">
                     <div className="item-info">
-                      <div className="item-nombre">{item.nombre}</div>
+                      <div className="item-nombre">
+                        {item.nombre}
+                        {item.talla && (
+                          <span className="item-talla-badge">Talla {item.talla}</span>
+                        )}
+                      </div>
                       <div className="item-precio">S/ {item.precio.toFixed(2)}</div>
                     </div>
-                    
+
                     <div className="item-controles">
                       <div className="cantidad-control">
-                        <button 
-                          onClick={() => modificarCantidad(item.id, item.cantidad - 1)}
+                        <button
+                          onClick={() => modificarCantidad(item.claveCarrito, item.cantidad - 1)}
                           className="btn-cantidad"
-                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
-                        >
-                          −
-                        </button>
+                          disabled={modoSoloLectura}
+                        >−</button>
                         <input
                           type="number"
                           value={item.cantidad}
-                          onChange={(e) => modificarCantidad(item.id, parseInt(e.target.value) || 1)}
+                          onChange={(e) => modificarCantidad(item.claveCarrito, parseInt(e.target.value) || 1)}
                           className="input-cantidad"
-                          min="1"
-                          max={item.stock}
-                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
+                          min="1" max={item.stock}
+                          disabled={modoSoloLectura}
                         />
-                        <button 
-                          onClick={() => modificarCantidad(item.id, item.cantidad + 1)}
+                        <button
+                          onClick={() => modificarCantidad(item.claveCarrito, item.cantidad + 1)}
                           className="btn-cantidad"
-                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
-                        >
-                          +
-                        </button>
+                          disabled={modoSoloLectura}
+                        >+</button>
                       </div>
-                      
+
                       <div className="descuento-control">
                         <label>Desc %:</label>
                         <input
-                          type="number"
-                          min="0"
-                          max="100"
+                          type="number" min="0" max="100"
                           value={item.descuento_porcentaje || 0}
-                          onChange={(e) => aplicarDescuento(item.id, parseFloat(e.target.value) || 0)}
+                          onChange={(e) => aplicarDescuento(item.claveCarrito, parseFloat(e.target.value) || 0)}
                           className="input-descuento"
-                          disabled={modoSoloLectura}  // 🆕 Deshabilitado
+                          disabled={modoSoloLectura}
                         />
                       </div>
-                      
-                      <button 
-                        onClick={() => eliminarDelCarrito(item.id)}
+
+                      <button
+                        onClick={() => eliminarDelCarrito(item.claveCarrito)}
                         className="btn-eliminar"
-                        disabled={modoSoloLectura}  // 🆕 Deshabilitado
-                      >
-                        🗑️
-                      </button>
+                        disabled={modoSoloLectura}
+                      >🗑️</button>
                     </div>
-                    
+
                     <div className="item-subtotal">
                       {item.descuento_porcentaje > 0 && (
                         <div className="item-descuento-aplicado">
-                          Descuento: -S/ {((item.precio * item.cantidad * item.descuento_porcentaje) / 100).toFixed(2)}
+                          Descuento: -S/ {(item.precio * item.cantidad * item.descuento_porcentaje / 100).toFixed(2)}
                         </div>
                       )}
                       <div className="subtotal-valor">
@@ -524,27 +519,16 @@ const confirmarLimpiarCarrito = () => {
           <div className="metodo-pago">
             <h4>Método de Pago</h4>
             <div className="metodos">
-              <button
-                className={metodoPago === 'EFECTIVO' ? 'active' : ''}
-                onClick={() => !modoSoloLectura && setMetodoPago('EFECTIVO')}  // 🆕 Solo funciona si NO está en modo lectura
-                disabled={modoSoloLectura}  // 🆕 Deshabilitado
-              >
-                💵 Efectivo
-              </button>
-              <button
-                className={metodoPago === 'TARJETA' ? 'active' : ''}
-                onClick={() => !modoSoloLectura && setMetodoPago('TARJETA')}
-                disabled={modoSoloLectura}  // 🆕 Deshabilitado
-              >
-                💳 Tarjeta
-              </button>
-              <button
-                className={metodoPago === 'TRANSFERENCIA' ? 'active' : ''}
-                onClick={() => !modoSoloLectura && setMetodoPago('TRANSFERENCIA')}
-                disabled={modoSoloLectura}  // 🆕 Deshabilitado
-              >
-                📱 Transferencia
-              </button>
+              {['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'].map(m => (
+                <button
+                  key={m}
+                  className={metodoPago === m ? 'active' : ''}
+                  onClick={() => !modoSoloLectura && setMetodoPago(m)}
+                  disabled={modoSoloLectura}
+                >
+                  {m === 'EFECTIVO' ? '💵 Efectivo' : m === 'TARJETA' ? '💳 Tarjeta' : '📱 Transferencia'}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -557,7 +541,7 @@ const confirmarLimpiarCarrito = () => {
                 onChange={(e) => setMontoRecibido(e.target.value)}
                 placeholder="0.00"
                 step="0.01"
-                disabled={modoSoloLectura}  // 🆕 Deshabilitado
+                disabled={modoSoloLectura}
               />
               {montoRecibido && (
                 <div className="cambio">
@@ -571,60 +555,80 @@ const confirmarLimpiarCarrito = () => {
           )}
 
           {mensaje.texto && (
-            <div className={`mensaje ${mensaje.tipo}`}>
-              {mensaje.texto}
-            </div>
+            <div className={`mensaje ${mensaje.tipo}`}>{mensaje.texto}</div>
           )}
 
           <div className="acciones">
-            <button 
+            <button
               onClick={limpiarCarrito}
               className="btn-limpiar"
-              disabled={carrito.length === 0 || modoSoloLectura}  // 🆕 Deshabilitado
-            >
-              🗑️ Limpiar
-            </button>
-            <button 
+              disabled={carrito.length === 0 || modoSoloLectura}
+            >🗑️ Limpiar</button>
+            <button
               onClick={procesarVenta}
               className="btn-procesar"
-              disabled={carrito.length === 0 || procesando || modoSoloLectura}  // 🆕 Deshabilitado
+              disabled={carrito.length === 0 || procesando || modoSoloLectura}
             >
               {procesando ? 'Procesando...' : modoSoloLectura ? '🔒 Licencia Expirada' : '✅ Procesar Venta'}
             </button>
           </div>
         </div>
       </div>
-{/* Modal de confirmación para limpiar carrito */}
-{mostrarConfirmacionLimpiar && (
-  <div className="modal-confirmacion-overlay">
-    <div className="modal-confirmacion">
-      <h3>⚠️ Limpiar Carrito</h3>
-      <p>¿Estás seguro de que deseas eliminar todos los productos del carrito?</p>
-      <div className="confirmacion-acciones">
-        <button 
-          onClick={() => setMostrarConfirmacionLimpiar(false)} 
-          className="btn-cancelar-modal"
-        >
-          Cancelar
-        </button>
-        <button 
-          onClick={confirmarLimpiarCarrito} 
-          className="btn-confirmar-modal"
-        >
-          ✅ Sí, Limpiar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+
+      {/* ======================== MODAL SELECTOR DE TALLA ======================== */}
+      {modalTalla && (
+        <div className="modal-talla-overlay" onClick={() => setModalTalla(null)}>
+          <div className="modal-talla" onClick={e => e.stopPropagation()}>
+            <div className="modal-talla-header">
+              <div>
+                <h3>{modalTalla.producto.nombre}</h3>
+                <p className="modal-talla-precio">S/ {modalTalla.producto.precio.toFixed(2)}</p>
+              </div>
+              <button className="btn-cerrar-modal-talla" onClick={() => setModalTalla(null)}>✕</button>
+            </div>
+            <p className="modal-talla-hint">Selecciona una talla para agregar al carrito:</p>
+            <div className="modal-talla-grid">
+              {modalTalla.variantes.map(v => (
+                <button
+                  key={v.id}
+                  className="talla-opcion"
+                  onClick={() => confirmarTalla(v)}
+                >
+                  <span className="talla-opcion-nombre">{v.talla}</span>
+                  <span className="talla-opcion-stock">{v.stock} disp.</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmación limpiar */}
+      {mostrarConfirmacionLimpiar && (
+        <div className="modal-confirmacion-overlay">
+          <div className="modal-confirmacion">
+            <h3>⚠️ Limpiar Carrito</h3>
+            <p>¿Estás seguro de que deseas eliminar todos los productos del carrito?</p>
+            <div className="confirmacion-acciones">
+              <button onClick={() => setMostrarConfirmacionLimpiar(false)} className="btn-cancelar-modal">
+                Cancelar
+              </button>
+              <button onClick={confirmarLimpiarCarrito} className="btn-confirmar-modal">
+                ✅ Sí, Limpiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mostrarRecibo && datosVenta && (
-        <Recibo 
-          venta={datosVenta} 
+        <Recibo
+          venta={datosVenta}
           onCerrar={() => {
             setMostrarRecibo(false);
             setDatosVenta(null);
             inputCodigoRef.current?.focus();
-          }} 
+          }}
         />
       )}
     </div>

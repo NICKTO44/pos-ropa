@@ -1,7 +1,6 @@
 // main.rs
 // Archivo principal de la aplicación Tauri - SQLite
 
-// Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod database;
@@ -12,16 +11,14 @@ use database::{DatabasePool, default_database_path, database_exists, initialize_
 use commands::*;
 
 fn main() {
-    // Obtener ruta de la base de datos
-   let db_path = match database::connection::setup_database() {
-    Ok(path) => path,
-    Err(e) => {
-        eprintln!("❌ Error al configurar base de datos: {}", e);
-        std::process::exit(1);
-    }
-};
-    
-    // Verificar si la base de datos existe, si no, crearla
+    let db_path = match database::connection::setup_database() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("❌ Error al configurar base de datos: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     if !database_exists(&db_path) {
         println!("📦 Base de datos no encontrada. Creando nueva base de datos...");
         match initialize_database(&db_path) {
@@ -35,8 +32,7 @@ fn main() {
     } else {
         println!("✅ Base de datos SQLite encontrada: {}", db_path);
     }
-    
-    // Crear pool de conexiones
+
     let db_pool = match DatabasePool::new(&db_path) {
         Ok(pool) => {
             println!("✅ Conexión a SQLite establecida correctamente");
@@ -52,27 +48,34 @@ fn main() {
     tauri::Builder::default()
         .manage(db_pool)
         .invoke_handler(tauri::generate_handler![
-            // Comandos de autenticación
+            // Autenticación
             login,
             test_database_connection,
-            // Comandos de productos
+
+            // Productos
             obtener_productos,
             buscar_producto_por_codigo,
             agregar_producto,
             obtener_productos_stock_bajo,
             actualizar_producto,
             obtener_categorias,
+            obtener_categorias_con_tipo,
             obtener_nombres_categorias,
-            buscar_productos_filtrado, 
-            // Comandos de ventas
+            buscar_productos_filtrado,
+            obtener_variantes_producto,
+            obtener_producto_con_variantes,
+
+            // Ventas
             procesar_venta,
-            // Comandos de reportes
+
+            // Reportes
             obtener_ventas_rango,
             obtener_productos_mas_vendidos,
             obtener_estadisticas_ventas,
             obtener_ventas_hoy,
             obtener_estadisticas_con_devoluciones,
-            // Comandos de configuración
+
+            // Configuración
             obtener_configuracion_tienda,
             actualizar_configuracion_tienda,
             agregar_categoria,
@@ -81,19 +84,47 @@ fn main() {
             obtener_roles,
             agregar_usuario,
             actualizar_usuario,
-            // Comandos de devoluciones
+
+            // Devoluciones de clientes
             buscar_venta_para_devolucion,
             procesar_devolucion,
-            // Comandos de licencias
+
+            // Licencias
             commands::licencias::obtener_estado_licencia,
             commands::licencias::verificar_licencia,
             commands::licencias::activar_licencia,
             commands::licencias::calcular_dias_restantes,
             commands::licencias::validar_codigo_activacion,
-            
-            commands::licencias::verificar_primera_vez,        // ← NUEVO
+            commands::licencias::verificar_primera_vez,
             commands::licencias::marcar_primera_vez_vista,
             commands::licencias::obtener_info_debug_licencia,
+
+            // Cajas
+            abrir_caja,
+            cerrar_caja,
+            registrar_movimiento_efectivo,
+            obtener_caja_abierta_usuario,
+            verificar_caja_abierta_sistema,
+            obtener_reporte_cierre,
+            obtener_historial_cajas,
+            obtener_detalle_caja,
+
+            // Proveedores y Compras
+            obtener_proveedores,
+            agregar_proveedor,
+            actualizar_proveedor,
+            eliminar_proveedor,
+            obtener_compras,
+            obtener_detalle_compra,
+            crear_compra,
+            recibir_mercaderia,
+            registrar_pago_compra,
+            cancelar_compra,
+
+            // 🆕 v1.5 Devoluciones a Proveedor
+            registrar_devolucion_proveedor,
+            resolver_devolucion_proveedor,
+            obtener_devoluciones_proveedor,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

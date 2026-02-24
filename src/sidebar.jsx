@@ -20,10 +20,24 @@ function Sidebar({
       roles: [1, 2] // Administrador y Cajero
     },
     {
+      id: 'caja',
+      nombre: 'Caja',
+      icono: '💰',
+      descripcion: 'Control de caja',
+      roles: [1, 2] // Administrador y Cajero
+    },
+    {
       id: 'inventario',
       nombre: 'Inventario',
       icono: '📦',
       descripcion: 'Gestión de productos',
+      roles: [1, 3] // Administrador y Almacenista
+    },
+    {
+      id: 'proveedores', // 🆕
+      nombre: 'Proveedores',
+      icono: '🚚',
+      descripcion: 'Compras y proveedores',
       roles: [1, 3] // Administrador y Almacenista
     },
     {

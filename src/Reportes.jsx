@@ -146,7 +146,7 @@ function Reportes({ usuario, onVolver }) {
             {estadisticas && (
               <div className="estadisticas-grid-devoluciones">
                 <div className="stat-card-dev ventas">
-                  <div className="stat-icono">💰</div>
+                  <div className="stat-icono"></div>
                   <div className="stat-info">
                     <div className="stat-label">VENTAS</div>
                     <div className="stat-valor">S/ {estadisticas.ventas.total.toFixed(2)}</div>
@@ -171,7 +171,7 @@ function Reportes({ usuario, onVolver }) {
                 )}
 
                 <div className="stat-card-dev total-neto">
-                  <div className="stat-icono">💵</div>
+                  <div className="stat-icono"></div>
                   <div className="stat-info">
                     <div className="stat-label">TOTAL NETO</div>
                     <div className="stat-valor grande">S/ {estadisticas.total_neto.toFixed(2)}</div>
@@ -186,7 +186,7 @@ function Reportes({ usuario, onVolver }) {
             <div className="reportes-grid">
               {/* Lista de Ventas */}
               <div className="panel ventas-panel">
-                <h3>📋 Lista de Ventas</h3>
+                <h3> Lista de Ventas</h3>
                 {ventas.length === 0 ? (
                   <div className="sin-datos">
                     <p>No hay ventas en este período</p>
@@ -212,7 +212,7 @@ function Reportes({ usuario, onVolver }) {
 
               {/* Productos Más Vendidos */}
               <div className="panel productos-panel">
-                <h3>🏆 Top 10 Productos Más Vendidos</h3>
+                <h3> Top 10 Productos Más Vendidos</h3>
                 {productosVendidos.length === 0 ? (
                   <div className="sin-datos">
                     <p>No hay datos disponibles</p>

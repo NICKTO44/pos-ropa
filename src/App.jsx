@@ -3,10 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import Login from './Login';
 import Sidebar from './Sidebar';
 import POS from './POS';
+import Caja from './Caja/Caja';
 import Inventario from './Inventario';
 import Reportes from './Reportes';
 import Configuracion from './Configuracion';
 import Devoluciones from './Devoluciones';
+import Proveedores from './Proveedores/Proveedores'; // 🆕
 import ActivarLicencia from './ActivarLicencia';
 import BannerLicencia from './BannerLicencia';
 import SplashScreen from './SplashScreen';
@@ -30,7 +32,6 @@ function App() {
   const [mostrarModalBienvenida, setMostrarModalBienvenida] = useState(false);
   const [esPrimeraVez, setEsPrimeraVez] = useState(false);
 
-  // 🔧 MOVER renderContenido AQUÍ (antes de los useEffect)
   const renderContenido = () => {
     if (!tienePermiso(vistaActual)) {
       return (
@@ -40,6 +41,7 @@ function App() {
           <button 
             onClick={() => {
               if (tienePermiso('pos')) setVistaActual('pos');
+              else if (tienePermiso('caja')) setVistaActual('caja');
               else if (tienePermiso('inventario')) setVistaActual('inventario');
               else if (tienePermiso('reportes')) setVistaActual('reportes');
             }} 
@@ -54,6 +56,8 @@ function App() {
     switch (vistaActual) {
       case 'pos':
         return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'caja':
+        return <Caja usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
       case 'inventario':
         return <Inventario usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
       case 'reportes':
@@ -62,6 +66,8 @@ function App() {
         return <Devoluciones usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
       case 'configuracion':
         return <Configuracion usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
+      case 'proveedores': // 🆕
+        return <Proveedores usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
       default:
         return <POS usuario={usuario} onVolver={() => setVistaActual('pos')} modoSoloLectura={modoSoloLectura} />;
     }
@@ -71,9 +77,9 @@ function App() {
     if (!usuario) return false;
     
     const permisos = {
-      1: { pos: true, inventario: true, reportes: true, configuracion: true, devoluciones: true },
-      2: { pos: true, inventario: false, reportes: true, configuracion: false, devoluciones: false },
-      3: { pos: false, inventario: true, reportes: false, configuracion: false, devoluciones: false },
+      1: { pos: true, caja: true, inventario: true, reportes: true, configuracion: true, devoluciones: true, proveedores: true }, // 🆕 Admin
+      2: { pos: true, caja: true, inventario: false, reportes: true, configuracion: false, devoluciones: false, proveedores: false }, // Cajero
+      3: { pos: false, caja: false, inventario: true, reportes: false, configuracion: false, devoluciones: false, proveedores: true }, // 🆕 Almacenista
     };
     
     return permisos[usuario.rol_id]?.[modulo] || false;
@@ -191,13 +197,13 @@ function App() {
   };
 
   const handleVerPlanesDesdeModal = () => {
-  setMostrarModalBienvenida(false);
-  setMostrarActivacion(true);
-};
+    setMostrarModalBienvenida(false);
+    setMostrarActivacion(true);
+  };
 
   const handleActivacionExitosa = async (esModoLectura) => {
     setModoSoloLectura(esModoLectura);
-      setMostrarActivacion(false);  // ← Ya cierra el modal
+    setMostrarActivacion(false);
     await verificarLicencia();
   };
 

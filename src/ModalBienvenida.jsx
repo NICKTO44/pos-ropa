@@ -21,9 +21,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
       <div className="modal-bienvenida-container">
         {/* Header con animación */}
         <div className="modal-bienvenida-header">
-          <div className="modal-icono-grande">
-            🎉
-          </div>
+          
           <h1 className="modal-titulo">
             ¡Bienvenido a Sistema POS Ropa!
           </h1>
@@ -35,7 +33,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
         {/* Información del trial */}
         <div className="modal-trial-info">
           <div className="trial-badge">
-            <span className="badge-icon">✨</span>
+            
             <div className="badge-content">
               <h3>Prueba Gratuita Activada</h3>
               <p><strong>{diasRestantes} días</strong> de acceso completo</p>

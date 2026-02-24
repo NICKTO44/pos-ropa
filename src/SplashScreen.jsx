@@ -29,7 +29,6 @@ const SplashScreen = ({
     switch(tipo) {
       case 'bienvenida':
         return {
-          icono: '🎉',
           titulo: '¡Bienvenido a Sistema POS Ropa!',
           mensaje: `Tienes ${diasRestantes} días de prueba gratuita`,
           submensaje: 'Acceso completo a todas las funcionalidades',
@@ -89,7 +88,7 @@ const SplashScreen = ({
       
       default:
         return {
-          icono: '✨',
+          
           titulo: 'Sistema POS Ropa',
           mensaje: `${diasRestantes} días de prueba`,
           submensaje: '',

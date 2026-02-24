@@ -9,7 +9,6 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
-# 🔧 PERMISOS NECESARIOS PARA CREAR RELEASES
 permissions:
   contents: write
   packages: write
@@ -35,10 +34,22 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # 🍎 macOS: agregar target Intel para Universal Binary
+      - name: Add macOS Intel target
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add x86_64-apple-darwin
+
       - name: Install dependencies
         run: npm install
 
-      - name: Build Tauri app
+      # 🍎 macOS: compilar Universal Binary (Intel + Apple Silicon)
+      - name: Build Tauri app (macOS Universal)
+        if: matrix.platform == 'macos-latest'
+        run: npm run tauri build -- --target universal-apple-darwin
+
+      # 🪟 Windows: compilar normal
+      - name: Build Tauri app (Windows)
+        if: matrix.platform == 'windows-latest'
         run: npm run tauri build
 
       - name: Get version
@@ -49,12 +60,13 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
+      # 🍎 macOS: subir DMG universal
       - name: Upload macOS DMG
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos-installer-${{ steps.version.outputs.VERSION }}
-          path: src-tauri/target/release/bundle/dmg/*.dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           retention-days: 30
 
       - name: Upload Windows MSI
@@ -69,10 +81,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    
+
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -109,8 +121,8 @@ jobs:
             **Windows:**
             - `.msi` - Instalador para Windows
             
-            **macOS:**
-            - `.dmg` - Instalador para macOS
+            **macOS (Universal - Intel + Apple Silicon):**
+            - `.dmg` - Funciona en MacBook Intel y MacBook M1/M2/M3
             
             ---
             
@@ -120,8 +132,7 @@ jobs:
             1. Descargar el archivo `.msi`
             2. Doble click en el instalador
             3. Seguir las instrucciones
-            4. La aplicación se instalará en `C:\Program Files\Sistema POS Ropa\`
-            5. Los datos se guardarán en `%APPDATA%\Sistema POS Ropa\`
+            4. Los datos se guardarán en `%APPDATA%\Sistema POS Ropa\`
             
             #### macOS:
             1. Descargar el archivo `.dmg`
@@ -131,29 +142,13 @@ jobs:
             
             ---
             
-            ### ✨ Características de esta versión:
-            
-            - ✅ Sistema de licencias completo (Trial, Mensual, Anual)
-            - ✅ Modo solo lectura cuando la licencia expira
-            - ✅ Pantalla de activación profesional
-            - ✅ Banner de estado de licencia
-            - ✅ Base de datos en AppData (preserva datos al actualizar)
-            - ✅ Migración automática desde versiones anteriores
-            - ✅ Bloqueo de POS e Inventario en modo lectura
-            
-            ---
-            
             ### 🔄 Actualización desde versión anterior:
-            
-            Si ya tienes una versión anterior instalada:
             
             **Windows**: El instalador detectará automáticamente la versión anterior
             - Tus datos se preservarán automáticamente
-            - Los productos, ventas y clientes NO se perderán
-            - Solo se actualizará el código de la aplicación
             
             **macOS**: Simplemente reemplaza la app en la carpeta Aplicaciones
-            - Los datos permanecen intactos
+            - Los datos permanecen intactos en `Application Support`
             
             ---
             
@@ -161,13 +156,12 @@ jobs:
             
             - **Primera instalación**: Incluye 15 días de licencia Trial
             - **Actualización**: Tus datos se preservan automáticamente
-            - **Base de datos**: Se guarda en tu carpeta de usuario
-            - **Licencia**: Después del trial, necesitarás un código de activación
+            - **macOS Universal**: Compatible con Intel y Apple Silicon (M1/M2/M3)
             
             ---
             
             **¡Gracias por usar Sistema POS Ropa!** 🎉
-            
+
           draft: false
           prerelease: false
           generate_release_notes: true
