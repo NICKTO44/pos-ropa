@@ -459,6 +459,9 @@ CREATE INDEX idx_detdevprov_producto   ON detalles_devolucion_proveedor(producto
 -- =====================================================
 -- TABLA: configuracion_tienda
 -- =====================================================
+-- =====================================================
+-- TABLA: configuracion_tienda
+-- =====================================================
 DROP TABLE IF EXISTS configuracion_tienda;
 CREATE TABLE configuracion_tienda (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -475,9 +478,11 @@ CREATE TABLE configuracion_tienda (
   dias_devolucion INTEGER DEFAULT 7,
   backup_automatico INTEGER DEFAULT 1,
   hora_backup TEXT DEFAULT '23:00:00',
+  impresora_ip TEXT DEFAULT '',
+  impresora_tipo TEXT DEFAULT 'TERMICA',
+  impresora_puerto INTEGER DEFAULT 9100,
   fecha_actualizacion TEXT DEFAULT (datetime('now', 'localtime'))
 );
-
 -- =====================================================
 -- TABLA: auditoria
 -- =====================================================

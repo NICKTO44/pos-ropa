@@ -15,49 +15,49 @@ function Sidebar({
     {
       id: 'pos',
       nombre: 'Punto de Venta',
-      icono: '💳',
+      icono: '↩',
       descripcion: 'Ventas',
       roles: [1, 2] // Administrador y Cajero
     },
     {
       id: 'caja',
       nombre: 'Caja',
-      icono: '💰',
+      icono: '↩',
       descripcion: 'Control de caja',
       roles: [1, 2] // Administrador y Cajero
     },
     {
       id: 'inventario',
       nombre: 'Inventario',
-      icono: '📦',
+      icono: '↩',
       descripcion: 'Gestión de productos',
       roles: [1, 3] // Administrador y Almacenista
     },
     {
       id: 'proveedores', // 🆕
       nombre: 'Proveedores',
-      icono: '🚚',
+      icono: '↩',
       descripcion: 'Compras y proveedores',
       roles: [1, 3] // Administrador y Almacenista
     },
     {
       id: 'reportes',
       nombre: 'Reportes',
-      icono: '📈',
+      icono: '↩',
       descripcion: 'Análisis de ventas',
       roles: [1, 2] // Administrador y Cajero
     },
     {
       id: 'devoluciones',
       nombre: 'Devoluciones',
-      icono: '↩️',
+      icono: '↩',
       descripcion: 'Procesar devoluciones',
       roles: [1] // Solo Administrador
     },
     {
       id: 'configuracion',
       nombre: 'Configuración',
-      icono: '⚙️',
+      icono: '↩',
       descripcion: 'Ajustes del sistema',
       roles: [1] // Solo Administrador
     }
@@ -73,7 +73,7 @@ function Sidebar({
       {/* Header con logo y toggle */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <div className="logo-icon">🏪</div>
+          <div className="logo-icon">T</div>
           {!colapsado && (
             <div className="logo-text">
               <h2>Sistema Tienda</h2>
@@ -131,7 +131,7 @@ function Sidebar({
           onClick={cerrarSesion}
           title="Cerrar Sesión"
         >
-          {colapsado ? '🚪' : '🚪 Cerrar Sesión'}
+          {colapsado ? '' : ' Cerrar Sesión'}
         </button>
       </div>
     </div>

@@ -46,7 +46,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
           <h3 className="beneficios-titulo">¿Qué incluye tu prueba gratuita?</h3>
           <div className="beneficios-grid">
             <div className="beneficio-item">
-              <span className="beneficio-icono">📦</span>
+              <span className="beneficio-icono"></span>
               <div className="beneficio-texto">
                 <h4>Gestión de Inventario</h4>
                 <p>Control completo de productos, stock y categorías</p>
@@ -54,7 +54,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
             </div>
 
             <div className="beneficio-item">
-              <span className="beneficio-icono">💰</span>
+              <span className="beneficio-icono"></span>
               <div className="beneficio-texto">
                 <h4>Sistema de Ventas</h4>
                 <p>Registro rápido de ventas con cálculo automático</p>
@@ -62,7 +62,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
             </div>
 
             <div className="beneficio-item">
-              <span className="beneficio-icono">📊</span>
+              <span className="beneficio-icono"></span>
               <div className="beneficio-texto">
                 <h4>Reportes Detallados</h4>
                 <p>Análisis de ventas, ganancias y productos más vendidos</p>
@@ -70,7 +70,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
             </div>
 
             <div className="beneficio-item">
-              <span className="beneficio-icono">👥</span>
+              <span className="beneficio-icono"></span>
               <div className="beneficio-texto">
                 <h4>Gestión de Clientes</h4>
                 <p>Base de datos de clientes y historial de compras</p>
@@ -78,7 +78,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
             </div>
 
             <div className="beneficio-item">
-              <span className="beneficio-icono">🔄</span>
+              <span className="beneficio-icono"></span>
               <div className="beneficio-texto">
                 <h4>Devoluciones</h4>
                 <p>Manejo completo de devoluciones y reembolsos</p>
@@ -109,7 +109,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
 
             <div className="plan-preview-card plan-preview-destacado">
               <div className="plan-preview-badge">Ahorra 20%</div>
-              <span className="plan-preview-icono">🎯</span>
+              <span className="plan-preview-icono"></span>
               <div className="plan-preview-info">
                 <h4>Anual</h4>
                 <p className="plan-preview-precio">S/384<span>/año</span></p>
@@ -151,7 +151,7 @@ function ModalBienvenida({ diasRestantes, onCerrar, onVerPlanes }) {
         {/* Footer con tip */}
         <div className="modal-footer">
           <div className="modal-tip">
-            <span className="tip-icono">💡</span>
+            <span className="tip-icono"></span>
             <p>
               <strong>Tip:</strong> Puedes activar tu licencia en cualquier momento desde el menú superior
             </p>

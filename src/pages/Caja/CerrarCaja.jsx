@@ -1,6 +1,6 @@
 // Caja/CerrarCaja.jsx
 import { useState } from 'react';
-import { cerrarCaja, obtenerReporteCierre, formatearMoneda } from '../services/cajaService';
+import { cerrarCaja, obtenerReporteCierre, formatearMoneda } from '../../services/cajaService';
 import './CerrarCaja.css';
 
 function CerrarCaja({ caja, usuario, onCerrar, onCajaCerrada }) {
@@ -82,7 +82,7 @@ function CerrarCaja({ caja, usuario, onCerrar, onCajaCerrada }) {
             {/* SECCIÓN 1: DINERO DIGITAL */}
             <div className="seccion-cuadre digital">
               <div className="seccion-titulo">
-                <span className="seccion-icono">💳</span>
+                <span className="seccion-icono"></span>
                 <span>Dinero Digital</span>
                 <span className="seccion-nota">No requiere conteo físico</span>
               </div>
@@ -105,7 +105,7 @@ function CerrarCaja({ caja, usuario, onCerrar, onCajaCerrada }) {
             {/* SECCIÓN 2: EFECTIVO FÍSICO */}
             <div className="seccion-cuadre efectivo">
               <div className="seccion-titulo">
-                <span className="seccion-icono">💵</span>
+                <span className="seccion-icono"></span>
                 <span>Efectivo Físico</span>
                 <span className="seccion-nota">Lo que debe haber en caja</span>
               </div>
@@ -195,7 +195,7 @@ function CerrarCaja({ caja, usuario, onCerrar, onCajaCerrada }) {
             {error && <div className="error-message">⚠️ {error}</div>}
 
             <div className="instruccion">
-              <div className="instruccion-icono">💵</div>
+              <div className="instruccion-icono"></div>
               <div className="instruccion-texto">
                 <h4>Cuenta el efectivo físico en caja</h4>
                 <p>Solo debes contar los billetes y monedas. Tarjeta y transferencia no se cuentan.</p>

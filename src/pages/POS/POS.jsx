@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import Recibo from './Recibo';
+import Recibo from '../../components/Recibo';
 import './POS.css';
 
 function POS({ usuario, onVolver, modoSoloLectura }) {
@@ -526,7 +526,7 @@ const getStockTexto = (stock) => {
                   onClick={() => !modoSoloLectura && setMetodoPago(m)}
                   disabled={modoSoloLectura}
                 >
-                  {m === 'EFECTIVO' ? '💵 Efectivo' : m === 'TARJETA' ? '💳 Tarjeta' : '📱 Transferencia'}
+                  {m === 'EFECTIVO' ? ' Efectivo' : m === 'TARJETA' ? ' Tarjeta' : ' Transferencia'}
                 </button>
               ))}
             </div>

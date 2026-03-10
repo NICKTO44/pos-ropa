@@ -10,7 +10,7 @@ import {
   calcularEfectivoEsperado,
   formatearDuracion,
   formatearMoneda 
-} from '../services/cajaService';
+} from '../../services/cajaService';
 import AbrirCaja from './AbrirCaja';
 import CerrarCaja from './CerrarCaja';
 import MovimientoCaja from './MovimientoCaja';

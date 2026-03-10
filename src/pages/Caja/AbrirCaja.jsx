@@ -2,7 +2,7 @@
 // Modal para abrir caja de turno
 
 import { useState } from 'react';
-import { abrirCaja } from '../services/cajaService';
+import { abrirCaja } from '../../services/cajaService';
 import './AbrirCaja.css';
 
 function AbrirCaja({ usuario, onCerrar, onCajaAbierta }) {

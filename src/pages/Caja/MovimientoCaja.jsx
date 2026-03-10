@@ -2,7 +2,7 @@
 // Modal para registrar retiros, ingresos y gastos
 
 import { useState } from 'react';
-import { registrarMovimiento } from '../services/cajaService';
+import { registrarMovimiento } from '../../services/cajaService';
 import './MovimientoCaja.css';
 
 function MovimientoCaja({ cajaId, onCerrar, onMovimientoRegistrado }) {
@@ -16,7 +16,7 @@ function MovimientoCaja({ cajaId, onCerrar, onMovimientoRegistrado }) {
     {
       id: 'RETIRO',
       nombre: 'Retiro',
-      icono: '💸',
+      icono: '',
       descripcion: 'Sacar dinero de caja',
       color: '#dc3545',
       ejemplos: ['Depósito bancario', 'Envío a caja fuerte', 'Retiro de seguridad']
@@ -32,7 +32,7 @@ function MovimientoCaja({ cajaId, onCerrar, onMovimientoRegistrado }) {
     {
       id: 'INGRESO',
       nombre: 'Ingreso',
-      icono: '💰',
+      icono: '',
       descripcion: 'Agregar dinero a caja',
       color: '#28a745',
       ejemplos: ['Cambio adicional', 'Fondeo extra', 'Devolución de préstamo']
@@ -82,7 +82,7 @@ function MovimientoCaja({ cajaId, onCerrar, onMovimientoRegistrado }) {
     <div className="modal-overlay" onClick={onCerrar}>
       <div className="modal-movimiento-caja" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>💸 Registrar Movimiento</h2>
+          <h2> Registrar Movimiento</h2>
           <button className="btn-cerrar-modal" onClick={onCerrar}>✕</button>
         </div>
 

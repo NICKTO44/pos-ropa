@@ -10,10 +10,11 @@ function Recibo({ venta, onCerrar }) {
     rfc: 'XAXX010101000',
     telefono: '(555) 123-4567',
     direccion: '',
-    mensaje_recibo: '¡GRACIAS POR SU COMPRA!'
+    mensaje_recibo: 'GRACIAS POR SU COMPRA!'
   });
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [mensajeImpresion, setMensajeImpresion] = useState('');
 
-  // Cargar configuración al montar el componente
   useEffect(() => {
     cargarConfiguracion();
   }, []);
@@ -23,22 +24,56 @@ function Recibo({ venta, onCerrar }) {
       const config = await invoke('obtener_configuracion_tienda');
       setConfigTienda(config);
     } catch (error) {
-      console.error('Error al cargar configuración:', error);
-      // Si falla, usa los valores por defecto que ya están en el estado
+      console.error('Error al cargar configuracion:', error);
+    }
+  };
+
+  const limpiarTexto = (str) => {
+    if (!str) return '';
+    return str.replace(/[^\x00-\x7F]/g, '');
+  };
+
+  const handleImprimirFisico = async () => {
+    setImprimiendo(true);
+    setMensajeImpresion('');
+    try {
+      const datosImpresion = {
+        nombre_tienda: limpiarTexto(configTienda.nombre_tienda),
+        direccion: limpiarTexto(configTienda.direccion) || null,
+        telefono: limpiarTexto(configTienda.telefono) || null,
+        items: venta.productos.map(p => ({
+          nombre: limpiarTexto(p.nombre),
+          cantidad: p.cantidad,
+          precio_unitario: p.precio,
+          subtotal: p.cantidad * p.precio * (1 - (p.descuento || 0) / 100),
+        })),
+        total: venta.total,
+        efectivo: venta.metodoPago === 'EFECTIVO' ? venta.montoRecibido : null,
+        cambio: venta.metodoPago === 'EFECTIVO' ? venta.cambio : null,
+        numero_boleta: venta.folio?.toString() || null,
+        cajero: limpiarTexto(venta.cajero) || null,
+      };
+
+      await invoke('imprimir_boleta', { datos: datosImpresion });
+      setMensajeImpresion('Impreso correctamente');
+    } catch (error) {
+      console.error('Error al imprimir:', error);
+      setMensajeImpresion('Error: ' + error);
+    } finally {
+      setImprimiendo(false);
     }
   };
 
   const handleDescargarPDF = () => {
     const doc = new jsPDF({
       unit: 'mm',
-      format: [80, 297], // Ancho 80mm, largo variable (máx A4)
+      format: [80, 297],
       orientation: 'portrait'
     });
 
     let y = 10;
     const lineHeight = 5;
 
-    // Header con datos dinámicos
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
     doc.text(configTienda.nombre_tienda.toUpperCase(), 40, y, { align: 'center' });
@@ -70,33 +105,25 @@ function Recibo({ venta, onCerrar }) {
     }
     
     y += 3;
-
-    // Separador
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Info
     doc.setFontSize(9);
     doc.text(`FOLIO: ${venta.folio}`, 5, y);
     y += lineHeight;
     
     const fecha = new Date().toLocaleString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
     doc.text(`FECHA: ${fecha}`, 5, y);
     y += lineHeight;
     doc.text(`CAJERO: ${venta.cajero}`, 5, y);
     y += lineHeight + 3;
 
-    // Separador
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Productos
     doc.setFont(undefined, 'bold');
     doc.text('CANT  DESCRIPCION    P.UNIT   TOTAL', 5, y);
     y += lineHeight;
@@ -106,15 +133,9 @@ function Recibo({ venta, onCerrar }) {
       const nombre = producto.nombre.length > 20 
         ? producto.nombre.substring(0, 20) + '...' 
         : producto.nombre;
-      
-      const linea = `${producto.cantidad}x    ${nombre}`;
-      doc.text(linea, 5, y);
+      doc.text(`${producto.cantidad}x    ${nombre}`, 5, y);
       y += lineHeight;
-      
-      const precioUnitario = producto.precio.toFixed(2);
-      const totalLinea = (producto.cantidad * producto.precio).toFixed(2);
-      const precio = `       S/ ${precioUnitario}   S/ ${totalLinea}`;
-      doc.text(precio, 5, y);
+      doc.text(`       S/ ${producto.precio.toFixed(2)}   S/ ${(producto.cantidad * producto.precio).toFixed(2)}`, 5, y);
       y += lineHeight + 1;
     });
 
@@ -122,7 +143,6 @@ function Recibo({ venta, onCerrar }) {
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Totales
     doc.text(`SUBTOTAL:`, 5, y);
     doc.text(`S/ ${venta.subtotal.toFixed(2)}`, 70, y, { align: 'right' });
     y += lineHeight;
@@ -144,7 +164,6 @@ function Recibo({ venta, onCerrar }) {
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Pago
     doc.text(`METODO DE PAGO: ${venta.metodoPago}`, 5, y);
     y += lineHeight;
 
@@ -159,10 +178,8 @@ function Recibo({ venta, onCerrar }) {
     doc.text('================================', 5, y);
     y += lineHeight + 2;
 
-    // Footer con mensaje personalizable
     doc.setFont(undefined, 'bold');
-    const mensajePrincipal = configTienda.mensaje_recibo || '¡GRACIAS POR SU COMPRA!';
-    doc.text(mensajePrincipal, 40, y, { align: 'center' });
+    doc.text(configTienda.mensaje_recibo || 'GRACIAS POR SU COMPRA!', 40, y, { align: 'center' });
     y += lineHeight;
     doc.setFont(undefined, 'normal');
     doc.text('Vuelva Pronto', 40, y, { align: 'center' });
@@ -172,37 +189,23 @@ function Recibo({ venta, onCerrar }) {
     y += lineHeight;
     doc.text('Para devoluciones conserve su ticket', 40, y, { align: 'center' });
 
-    // Guardar PDF
     doc.save(`Ticket-${venta.folio}.pdf`);
   };
 
   const handleImprimir = () => {
-    // Ocultar los botones antes de imprimir
     const botonesAcciones = document.querySelector('.recibo-acciones');
-    if (botonesAcciones) {
-      botonesAcciones.style.display = 'none';
-    }
-
-    // Imprimir
+    if (botonesAcciones) botonesAcciones.style.display = 'none';
     window.print();
-
-    // Restaurar botones después de imprimir/cancelar
     setTimeout(() => {
-      if (botonesAcciones) {
-        botonesAcciones.style.display = 'flex';
-      }
+      if (botonesAcciones) botonesAcciones.style.display = 'flex';
     }, 100);
   };
 
   const formatearFecha = () => {
     const ahora = new Date();
     return ahora.toLocaleString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
     });
   };
 
@@ -210,20 +213,33 @@ function Recibo({ venta, onCerrar }) {
     <div className="recibo-overlay">
       <div className="recibo-container">
         <div className="recibo-acciones no-print">
+          <button
+            onClick={handleImprimirFisico}
+            className="btn-imprimir"
+            disabled={imprimiendo}
+          >
+            {imprimiendo ? 'Imprimiendo...' : 'Imprimir Ticket'}
+          </button>
           <button onClick={handleImprimir} className="btn-imprimir">
-            🖨️ Imprimir
+            Imprimir normal
           </button>
           <button onClick={handleDescargarPDF} className="btn-descargar">
-            📥 Descargar PDF
+            Descargar PDF
           </button>
           <button onClick={onCerrar} className="btn-cerrar">
-            ✕ Cerrar
+            Cerrar
           </button>
         </div>
 
+        {mensajeImpresion && (
+          <div className={`mensaje-impresion ${mensajeImpresion.includes('Error') ? 'error' : 'success'}`}>
+            {mensajeImpresion}
+          </div>
+        )}
+
         <div className="recibo-ticket" ref={reciboRef}>
           <div className="recibo-header">
-            <h1>🏪 {configTienda.nombre_tienda}</h1>
+            <h1>{configTienda.nombre_tienda}</h1>
             <p>Sistema de Ventas</p>
             {configTienda.rfc && <p>RUC: {configTienda.rfc}</p>}
             {configTienda.telefono && <p>Tel: {configTienda.telefono}</p>}
@@ -254,7 +270,7 @@ function Recibo({ venta, onCerrar }) {
               <thead>
                 <tr>
                   <th>CANT</th>
-                  <th>DESCRIPCIÓN</th>
+                  <th>DESCRIPCION</th>
                   <th>P.UNIT</th>
                   <th>TOTAL</th>
                 </tr>
@@ -295,7 +311,7 @@ function Recibo({ venta, onCerrar }) {
 
           <div className="recibo-pago">
             <div className="pago-row">
-              <span>MÉTODO DE PAGO:</span>
+              <span>METODO DE PAGO:</span>
               <span><strong>{venta.metodoPago}</strong></span>
             </div>
             {venta.metodoPago === 'EFECTIVO' && (
@@ -315,9 +331,9 @@ function Recibo({ venta, onCerrar }) {
           <div className="recibo-separador">================================</div>
 
           <div className="recibo-footer">
-            <p>{configTienda.mensaje_recibo || '¡GRACIAS POR SU COMPRA!'}</p>
+            <p>{configTienda.mensaje_recibo || 'GRACIAS POR SU COMPRA!'}</p>
             <p>Vuelva Pronto</p>
-            <p className="small">Este ticket no es válido como factura</p>
+            <p className="small">Este ticket no es valido como factura</p>
             <p className="small">Para devoluciones conserve su ticket</p>
           </div>
 

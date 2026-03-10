@@ -9,7 +9,8 @@ pub mod configuracion;
 pub mod devoluciones;
 pub mod licencias;
 pub mod cajas;
-pub mod proveedores; // 🆕
+pub mod proveedores;
+pub mod impresora; // 🆕
 
 pub use auth::{login, test_database_connection};
 pub use productos::{
@@ -68,8 +69,8 @@ pub use proveedores::{
     recibir_mercaderia,
     registrar_pago_compra,
     cancelar_compra,
-    // 🆕 v1.5 Devoluciones a Proveedor
     registrar_devolucion_proveedor,
     resolver_devolucion_proveedor,
     obtener_devoluciones_proveedor,
 };
+pub use impresora::{imprimir_boleta, probar_impresora}; // 🆕

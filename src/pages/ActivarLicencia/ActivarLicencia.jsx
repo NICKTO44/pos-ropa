@@ -75,9 +75,9 @@ function ActivarLicencia({ onActivacionExitosa, estadoLicencia }) {
       <div className="activar-licencia-container">
         {/* Logo/Header */}
         <div className="activar-header">
-          <div className="activar-logo">🏪</div>
+          <div className="activar-logo"></div>
           <h1>Sistema De Ventas</h1>
-          <p className="activar-version">v1.0.1</p>
+          <p className="activar-version">v2.0.5</p>
         </div>
 
         {/* Estado actual */}
@@ -97,10 +97,10 @@ function ActivarLicencia({ onActivacionExitosa, estadoLicencia }) {
             <>
               <span className="icono-estado">⚠️</span>
               <div className="estado-texto">
-                <h2>Período de Gracia</h2>
+                <h2>Período de Prueba</h2>
                 <p>Tu licencia expiró. Actívala para continuar.</p>
                 <p className="estado-detalle">
-                  Quedan {Math.abs(estadoLicencia?.dias_restantes || 0)} días de gracia
+                  Quedan {Math.abs(estadoLicencia?.dias_restantes || 0)} días de prueba
                 </p>
               </div>
             </>
@@ -203,7 +203,7 @@ function ActivarLicencia({ onActivacionExitosa, estadoLicencia }) {
               <div className="planes-grid">
                 <div className="plan-card">
                   <div className="plan-header">
-                    <span className="plan-icono">📅</span>
+                    <span className="plan-icono"></span>
                     <h5>Mensual</h5>
                   </div>
                   <div className="plan-precio">S/40 <span>/mes</span></div>
@@ -217,7 +217,7 @@ function ActivarLicencia({ onActivacionExitosa, estadoLicencia }) {
                 <div className="plan-card plan-destacado">
                   <div className="plan-badge">Ahorra 20%</div>
                   <div className="plan-header">
-                    <span className="plan-icono">🎯</span>
+                    <span className="plan-icono"></span>
                     <h5>Anual</h5>
                   </div>
                   <div className="plan-precio"> S/384 <span>/año</span></div>

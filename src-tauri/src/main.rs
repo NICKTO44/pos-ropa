@@ -1,6 +1,4 @@
 // main.rs
-// Archivo principal de la aplicación Tauri - SQLite
-
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod database;
@@ -121,10 +119,14 @@ fn main() {
             registrar_pago_compra,
             cancelar_compra,
 
-            // 🆕 v1.5 Devoluciones a Proveedor
+            // Devoluciones a Proveedor
             registrar_devolucion_proveedor,
             resolver_devolucion_proveedor,
             obtener_devoluciones_proveedor,
+
+            // 🆕 Impresora
+            imprimir_boleta,
+            probar_impresora,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

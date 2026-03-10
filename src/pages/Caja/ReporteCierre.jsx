@@ -1,6 +1,6 @@
 // Caja/ReporteCierre.jsx
 import { useRef } from 'react';
-import { formatearMoneda, formatearDuracion } from '../services/cajaService';
+import { formatearMoneda, formatearDuracion } from '../../services/cajaService';
 import './ReporteCierre.css';
 
 function ReporteCierre({ reporte, onCerrar }) {
@@ -47,7 +47,7 @@ function ReporteCierre({ reporte, onCerrar }) {
 
           {/* HEADER */}
           <div className="reporte-header">
-            <div className="reporte-logo">🏪</div>
+            <div className="reporte-logo"></div>
             <h1>REPORTE DE CIERRE DE CAJA</h1>
             <div className="reporte-fecha">{formatearFecha(reporte.caja.fecha_cierre)}</div>
           </div>
